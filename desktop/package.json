@@ -1,0 +1,125 @@
+{
+  "name": "liseuse-lampe-desktop",
+  "productName": "Liseuse à la lampe",
+  "version": "1.0.0",
+  "description": "Liseuse à la lampe, application de bureau",
+  "author": "Victor Dumanois",
+  "license": "MIT",
+  "private": true,
+  "main": "src/main.js",
+  "devDependencies": {
+    "electron": "45.2.3",
+    "electron-builder": "26.18.0",
+    "resedit": "3.1.0"
+  },
+  "scripts": {
+    "start": "node scripts/prepare.mjs && electron .",
+    "prepare:page": "node scripts/prepare.mjs",
+    "icons": "python3 scripts/make_icons.py",
+    "build:win": "node scripts/prepare.mjs && electron-builder --win --x64 && node scripts/make-zip.mjs && node scripts/checksums.mjs",
+    "build:mac": "node scripts/prepare.mjs && electron-builder --mac dir --arm64 --config.productName=Liseuse-a-la-lampe",
+    "test": "node test/run.mjs",
+    "inspect:win": "node scripts/inspect-win.mjs"
+  },
+  "build": {
+    "appId": "fr.liseuse.lampe",
+    "productName": "Liseuse à la lampe",
+    "copyright": "© 2026 Victor Dumanois",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "app/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "compression": "maximum",
+    "electronLanguages": [
+      "fr",
+      "en-US"
+    ],
+    "afterSign": "scripts/after-sign.cjs",
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "onlyLoadAppFromAsar": true,
+      "grantFileProtocolExtraPrivileges": false
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "Liseuse-a-la-lampe-${version}-win-x64.${ext}",
+      "requestedExecutionLevel": "asInvoker",
+      "executableName": "Liseuse-a-la-lampe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Liseuse à la lampe",
+      "uninstallDisplayName": "Liseuse à la lampe",
+      "language": "1036",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "include": "build/installer.nsh",
+      "artifactName": "Liseuse-a-la-lampe-${version}-win-x64.${ext}",
+      "installerLanguages": [
+        "fr_FR"
+      ],
+      "multiLanguageInstaller": true,
+      "differentialPackage": false,
+      "packElevateHelper": false
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dir",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "build/icon.icns",
+      "category": "public.app-category.books",
+      "identity": null,
+      "artifactName": "Liseuse-a-la-lampe-${version}-mac-${arch}.${ext}",
+      "extendInfo": {
+        "CFBundleDisplayName": "Liseuse à la lampe",
+        "CFBundleDocumentTypes": [
+          {
+            "CFBundleTypeName": "Livre ou document",
+            "CFBundleTypeRole": "Viewer",
+            "LSHandlerRank": "Alternate",
+            "CFBundleTypeExtensions": [
+              "epub",
+              "pdf",
+              "fb2",
+              "mobi",
+              "azw3",
+              "txt",
+              "docx",
+              "odt",
+              "rtf",
+              "cbz"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

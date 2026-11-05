@@ -1,0 +1,9 @@
+# Apache (OVH) : la page 404 du site, et pas celle du domaine.
+ErrorDocument 404 /liseuse/404.html
+# Les images et les polices changent rarement : gardées un mois par le navigateur.
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType image/webp "access plus 30 days"
+  ExpiresByType image/jpeg "access plus 30 days"
+  ExpiresByType font/woff2 "access plus 30 days"
+</IfModule>

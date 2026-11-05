@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Liseuse à la lampe · Lire devant une scène peinte, à la lueur d’une lampe</title>
+<meta name="description" content="Une liseuse gratuite pour Windows : tu lis tes PDF, ePub et documents Word à la lampe, devant une scène peinte qui suit l’heure et la météo. Tout reste sur ton ordinateur.">
+<meta name="theme-color" content="#14110f">
+<meta name="color-scheme" content="dark">
+
+<!-- L'adresse publiée (aperçus de liens : il leur faut une adresse complète). Les liens de téléchargement sont dans config.js. -->
+<link rel="canonical" href="https://exigelabs.fr/liseuse/">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="fr_FR">
+<meta property="og:site_name" content="Liseuse à la lampe">
+<meta property="og:title" content="Liseuse à la lampe · Lire devant une scène peinte">
+<meta property="og:description" content="Une liseuse gratuite pour Windows : tes livres à la lueur d’une lampe, devant une scène peinte qui suit l’heure et la météo. Tout reste sur ton ordinateur.">
+<meta property="og:url" content="https://exigelabs.fr/liseuse/">
+<meta property="og:image" content="https://exigelabs.fr/liseuse/img/partage.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="La liseuse au bord d’un lac au coucher du soleil, le texte posé sur un chevalet de peintre.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://exigelabs.fr/liseuse/img/partage.jpg">
+
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon.ico" sizes="32x32">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+
+<!-- Polices Literata et Geist (licence OFL), hébergées ici : rien ne part vers Google Fonts. -->
+<link rel="preload" href="polices/geist-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="polices/literata-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="polices/polices.css">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-lamp" viewBox="0 0 24 24"><path d="M8.5 3.5h7l3 7h-13z"/><path d="M12 10.5v8M8.5 20.5h7"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4.5v10M7.5 10.5l4.5 4.5 4.5-4.5M5 19.5h14"/></symbol>
+  <symbol id="i-ext" viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5.5v13M5.5 12h13"/></symbol>
+  <symbol id="i-prev" viewBox="0 0 24 24"><path d="M14.5 6.5 9 12l5.5 5.5"/></symbol>
+  <symbol id="i-next" viewBox="0 0 24 24"><path d="M9.5 6.5 15 12l-5.5 5.5"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+</svg>
+
+<a class="aller" href="#contenu">Aller au contenu</a>
+
+<header class="page tete">
+  <a class="marque" href="#haut" aria-label="Liseuse à la lampe, haut de la page">
+    <svg class="i" aria-hidden="true" focusable="false"><use href="#i-lamp"/></svg>
+    Liseuse à la lampe
+  </a>
+  <nav class="menu" aria-label="Sections">
+    <a href="#ce-que-tu-as">Ce que tu as</a>
+    <a href="#vie-privee">Vie privée</a>
+    <a href="#questions">Questions</a>
+    <a class="btn fil petit" href="#telecharger">Télécharger</a>
+  </nav>
+</header>
+
+<main id="contenu">
+
+<!-- ═══ l'ouverture : ce que c'est, ce qu'on a, et le bouton ═══ -->
+<section class="page ouverture" id="haut" aria-labelledby="titre">
+  <div class="texte">
+    <h1 id="titre">Liseuse <span class="nb">à la lampe</span></h1>
+    <div class="droite">
+      <p class="lede">Une liseuse pour lire à la lampe, devant une scène peinte qui suit l’heure et la météo.</p>
+      <p class="suite">Ouvre un PDF, un ePub ou un document Word : le texte se pose dans la scène que tu as choisie. Tout reste sur ton ordinateur.</p>
+      <div class="actions">
+        <a class="btn" href="#telecharger" data-lien="windowsInstalleur"><svg class="i" aria-hidden="true" focusable="false"><use href="#i-down"/></svg>Télécharger pour Windows</a>
+        <a class="btn fil ext" href="#telecharger" data-lien="depot">Voir sur GitHub<svg class="i" aria-hidden="true" focusable="false"><use href="#i-ext"/></svg></a>
+      </div>
+      <p class="fine">Gratuit et libre · Windows 10 et 11 · Sans compte</p>
+      <p class="autre-os" hidden>Tu es sur Mac ou sous Linux&nbsp;? Ouvre <a href="#telecharger" data-lien="pageHtml">liseuse.html</a> dans Chrome ou Edge.</p>
+      <noscript><p class="autre-os">Les boutons de téléchargement ont besoin de JavaScript. Les fichiers sont sur la page des versions du dépôt GitHub.</p></noscript>
+    </div>
+  </div>
+
+  <figure class="vue-haute heures" data-heures>
+    <div class="cadre">
+      <img data-meteo="sun" data-src="img/heure-lake-sun.webp" data-srcset="img/heure-lake-sun-s.webp 1000w, img/heure-lake-sun.webp 2000w" sizes="(min-width: 1200px) 1056px, calc(100vw - 40px)" width="2000" height="1250" decoding="async"
+           alt="La liseuse devant le lac en plein soleil : le lac est bleu, l’eau scintille ; le texte est posé sur un chevalet de peintre.">
+      <img data-meteo="golden" class="vue" fetchpriority="high" src="img/heure-lake-golden.webp" srcset="img/heure-lake-golden-s.webp 1000w, img/heure-lake-golden.webp 2000w" sizes="(min-width: 1200px) 1056px, calc(100vw - 40px)" width="2000" height="1250" decoding="async"
+           alt="La liseuse devant le lac à l’heure dorée : la lumière rasante dore l’eau et les roseaux ; le texte est posé sur un chevalet de peintre.">
+      <img data-meteo="sunset" data-src="img/heure-lake-sunset.webp" data-srcset="img/heure-lake-sunset-s.webp 1000w, img/heure-lake-sunset.webp 2000w" sizes="(min-width: 1200px) 1056px, calc(100vw - 40px)" width="2000" height="1250" decoding="async"
+           alt="La liseuse devant le lac au coucher du soleil : le ciel mauve et orangé se reflète dans le lac ; le texte est posé sur un chevalet de peintre.">
+      <img data-meteo="night" data-src="img/heure-lake-night.webp" data-srcset="img/heure-lake-night-s.webp 1000w, img/heure-lake-night.webp 2000w" sizes="(min-width: 1200px) 1056px, calc(100vw - 40px)" width="2000" height="1250" decoding="async"
+           alt="La liseuse devant le lac sous la pleine lune : le lac est bleu nuit, la lune se reflète dans l’eau ; le texte est posé sur un chevalet de peintre.">
+      <img data-meteo="rain" data-src="img/heure-lake-rain.webp" data-srcset="img/heure-lake-rain-s.webp 1000w, img/heure-lake-rain.webp 2000w" sizes="(min-width: 1200px) 1056px, calc(100vw - 40px)" width="2000" height="1250" decoding="async"
+           alt="La liseuse devant le lac sous la pluie : le ciel est gris et la pluie tombe sur le lac ; le texte est posé sur un chevalet de peintre.">
+    </div>
+    <figcaption class="horloge">
+      <div>
+        <p class="dit" data-heure-dite hidden></p>
+        <p class="legende">Le lac, le texte sur un chevalet. Texte d’exemple fourni avec la liseuse.</p>
+      </div>
+      <div class="moments" role="radiogroup" aria-label="Le moment de la journée dans la scène" data-js hidden>
+        <button type="button" role="radio" data-meteo="sun" aria-checked="false" tabindex="-1"><span class="pt" style="--c:#f3d27a" aria-hidden="true"></span>Plein soleil</button>
+        <button type="button" role="radio" data-meteo="golden" aria-checked="false" tabindex="-1"><span class="pt" style="--c:#e8a14b" aria-hidden="true"></span>Heure dorée</button>
+        <button type="button" role="radio" data-meteo="sunset" aria-checked="false" tabindex="-1"><span class="pt" style="--c:#d86a6a" aria-hidden="true"></span>Coucher</button>
+        <button type="button" role="radio" data-meteo="night" aria-checked="false" tabindex="-1"><span class="pt" style="--c:#93a6dc" aria-hidden="true"></span>Pleine lune</button>
+        <button type="button" role="radio" data-meteo="rain" aria-checked="false" tabindex="-1"><span class="pt" style="--c:#7f8f94" aria-hidden="true"></span>Pluie</button>
+      </div>
+    </figcaption>
+  </figure>
+</section>
+
+<!-- ═══ ce que tu as ═══ -->
+<section class="bloc premier" id="ce-que-tu-as" aria-labelledby="t-avoir">
+  <div class="page">
+    <h2 id="t-avoir" data-apparition>Ce que tu as en ouvrant la liseuse.</h2>
+    <p class="intro" data-apparition>Un livre, une scène, et rien d’autre à régler pour commencer.</p>
+
+    <div class="ligne" data-apparition>
+      <div class="entete">
+        <h3>Douze scènes peintes, qui suivent l’heure et la météo</h3>
+        <div class="detail">
+          <p class="corps">Le soleil se lève et se couche, la lune monte, les nuages passent, il pleut ou il y a de l’orage. Tu fixes l’heure et le temps, ou tu laisses le ciel avancer.</p>
+          <p class="corps"><strong>Un son par scène</strong>&nbsp;: la pluie, le feu qui crépite, l’eau et les grillons, le vent. Tu le coupes d’un clic, tu choisis son type et son volume.</p>
+        </div>
+      </div>
+      <ul class="galerie" aria-label="Les douze scènes, chacune à son heure préférée">
+          <li><button type="button" class="vignette" data-grand="img/scene-nook.webp"><span class="cv"><img src="img/scene-nook-s.webp" width="1000" height="625" loading="lazy" decoding="async" alt="Le coin lecture, la nuit : une lampe allumée près d’une bibliothèque, une plante suspendue, une grande fenêtre sur la forêt sous la pluie."></span><span class="n">Coin lecture <small>Pluie</small></span></button></li>
+          <li><button type="button" class="vignette" data-grand="img/scene-hearth.webp"><span class="cv"><img src="img/scene-hearth-s.webp" width="1000" height="625" loading="lazy" decoding="async" alt="Un feu de bois dans une cheminée de pierre, des bougies sur le manteau, un fauteuil près de la bibliothèque, une petite fenêtre sur la lune."></span><span class="n">Cheminée <small>Pleine lune</small></span></button></li>
+          <li><button type="button" class="vignette" data-grand="img/scene-forest.webp"><span class="cv"><img src="img/scene-forest-s.webp" width="1000" height="625" loading="lazy" decoding="async" alt="Une grande baie vitrée sur une forêt de sapins sous la pluie, une lanterne posée au sol."></span><span class="n">Forêt <small>Pluie</small></span></button></li>
+          <li><button type="button" class="vignette" data-grand="img/scene-lake.webp"><span class="cv"><img src="img/scene-lake-s.webp" width="1000" height="625" loading="lazy" decoding="async" alt="Un ponton sur un lac au coucher du soleil, des roseaux, le ciel mauve et orangé."></span><span class="n">Lac <small>Coucher de soleil</small></span></button></li>
+          <li><button type="button" class="vignette" data-grand="img/scene-snow.webp"><span class="cv"><img src="img/scene-snow-s.webp" width="1000" height="625" loading="lazy" decoding="async" alt="Une grande fenêtre sur un paysage de neige sous la lune, une guirlande lumineuse, des bougies et des coussins sur la banquette."></span><span class="n">Neige <small>Pleine lune</small></span></button></li>
+          <li><button type="button" class="vignette" data-grand="img/scene-washitsu.webp"><span class="cv"><img src="img/scene-washitsu-s.webp" width="1000" height="625" loading="lazy" decoding="async" alt="Une chambre japonaise aux tatamis et aux shoji, une lanterne de papier, un jardin à l’érable rouge dans la lumière dorée."></span><span class="n">Chambre japonaise <small>Heure dorée</small></span></button></li>
+          <li><button type="button" class="vignette" data-grand="img/scene-fuji.webp"><span class="cv"><img src="img/scene-fuji-s.webp" width="1000" height="625" loading="lazy" decoding="async" alt="Le mont Fuji au coucher du soleil, reflété dans le lac, un torii rouge et des cerisiers en fleurs."></span><span class="n">Mont Fuji <small>Coucher de soleil</small></span></button></li>
+          <li><button type="button" class="vignette" data-grand="img/scene-onsen.webp"><span class="cv"><img src="img/scene-onsen-s.webp" width="1000" height="625" loading="lazy" decoding="async" alt="Un bain chaud en plein air, la nuit : des lanternes, des rochers et la pleine lune."></span><span class="n">Onsen <small>Pleine lune</small></span></button></li>
+          <li><button type="button" class="vignette" data-grand="img/scene-plage.webp"><span class="cv"><img src="img/scene-plage-s.webp" width="1000" height="625" loading="lazy" decoding="async" alt="Une plage de sable blanc et une mer turquoise, un pin parasol, une serviette et un chapeau de paille."></span><span class="n">Plage <small>Grand soleil</small></span></button></li>
+          <li><button type="button" class="vignette" data-grand="img/scene-alpes.webp"><span class="cv"><img src="img/scene-alpes-s.webp" width="1000" height="625" loading="lazy" decoding="async" alt="Le balcon d’un refuge face aux sommets enneigés, des géraniums rouges et des drapeaux de prière."></span><span class="n">Refuge alpin <small>Grand soleil</small></span></button></li>
+          <li><button type="button" class="vignette" data-grand="img/scene-cote.webp"><span class="cv"><img src="img/scene-cote-s.webp" width="1000" height="625" loading="lazy" decoding="async" alt="Une côte rocheuse à l’heure dorée, un phare sur un îlot, des dunes et des ganivelles."></span><span class="n">Côte sauvage <small>Heure dorée</small></span></button></li>
+          <li><button type="button" class="vignette" data-grand="img/scene-paris.webp"><span class="cv"><img src="img/scene-paris-s.webp" width="1000" height="625" loading="lazy" decoding="async" alt="Les toits de Paris et la tour Eiffel à l’heure dorée, vus d’un balcon fleuri en fer forgé."></span><span class="n">Toits de Paris <small>Heure dorée</small></span></button></li>
+      </ul>
+    </div>
+
+    <div class="ligne" data-apparition>
+      <div class="entete">
+        <h3>Une bibliothèque sur une table de bois</h3>
+        <div class="detail">
+          <p class="corps">Chaque livre que tu ouvres se pose sur la table, avec sa couverture et l’endroit où tu en es. Tu reprends en un clic là où tu t’étais arrêté. Dépose un fichier n’importe où sur la page pour l’ajouter.</p>
+        </div>
+      </div>
+      <figure class="vue">
+        <div class="cadre">
+          <img src="img/bibliotheque-s.webp" srcset="img/bibliotheque-s.webp 1000w, img/bibliotheque.webp 2000w" sizes="(min-width: 1200px) 1024px, calc(100vw - 40px)" width="2000" height="1250" loading="lazy" decoding="async"
+               alt="La bibliothèque : huit livres aux couvertures illustrées posés sur une table de bois sous une lumière chaude, chacun avec son avancement en pourcentage.">
+        </div>
+        <figcaption class="legende">Les huit livres de la table sont des exemples inventés pour la capture.</figcaption>
+      </figure>
+    </div>
+
+    <div class="ligne" data-apparition>
+      <div class="entete">
+        <h3>Le texte se pose où tu veux</h3>
+        <div class="detail">
+          <p class="corps">Sept façons de poser le texte dans la scène. Tu le déplaces, tu l’agrandis, et tu changes de support quand tu veux.</p>
+          <ul class="puces supports" aria-label="Les sept supports du texte">
+            <li>Feuille</li><li>Chevalet</li><li>Cadre</li><li>Livre ouvert</li><li>Livre relié</li><li>Écran</li><li>Bulle</li>
+          </ul>
+        </div>
+      </div>
+      <div class="trio">
+        <figure>
+          <div class="cadre"><img src="img/alpes-bulle-s.webp" srcset="img/alpes-bulle-s.webp 1000w, img/alpes-bulle.webp 2000w" sizes="(min-width: 861px) 352px, calc(100vw - 40px)" width="2000" height="1250" loading="lazy" decoding="async"
+               alt="Le refuge alpin au crépuscule : le texte flotte dans une bulle de verre dépoli devant des montagnes violettes et orangées."></div>
+          <figcaption><strong>Bulle</strong> · devant le refuge alpin, au crépuscule</figcaption>
+        </figure>
+        <figure>
+          <div class="cadre"><img src="img/fuji-jour-s.webp" srcset="img/fuji-jour-s.webp 1000w, img/fuji-jour.webp 2000w" sizes="(min-width: 861px) 352px, calc(100vw - 40px)" width="2000" height="1250" loading="lazy" decoding="async"
+               alt="Le mont Fuji en plein jour : le texte est dans un cadre de bois accroché devant un lac bleu, un torii rouge et des cerisiers en fleurs."></div>
+          <figcaption><strong>Cadre</strong> · devant le mont Fuji, en plein jour</figcaption>
+        </figure>
+        <figure>
+          <div class="cadre"><img src="img/paris-jour-s.webp" srcset="img/paris-jour-s.webp 1000w, img/paris-jour.webp 2000w" sizes="(min-width: 861px) 352px, calc(100vw - 40px)" width="2000" height="1250" loading="lazy" decoding="async"
+               alt="Les toits de Paris en plein jour : le texte est sur les deux pages d’un livre relié ouvert posé devant la terrasse."></div>
+          <figcaption><strong>Livre relié</strong> · sur les toits de Paris</figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="ligne" data-apparition>
+      <div class="entete">
+        <h3>Une lecture réglée à ton goût</h3>
+        <div class="detail">
+          <p class="corps">La police, les couleurs, la taille, l’interligne, l’espacement des mots et des lettres, la largeur de la colonne, le texte justifié ou non&nbsp;: chaque réglage se voit tout de suite. Six jeux de couleurs (papier, sépia, nuit…), ou les tiens&nbsp;; ta propre police si tu veux.</p>
+          <p class="corps">Tout est gardé&nbsp;: les réglages, la scène, le support, et ta place dans chaque livre.</p>
+        </div>
+      </div>
+      <figure class="vue">
+        <div class="cadre">
+          <img src="img/reglages-s.webp" srcset="img/reglages-s.webp 1000w, img/reglages.webp 2000w" sizes="(min-width: 1200px) 1024px, calc(100vw - 40px)" width="2000" height="1250" loading="lazy" decoding="async"
+               alt="Le tiroir des réglages ouvert à droite de la cheminée : choix des couleurs et des polices, curseurs de taille, d’interligne et d’espacement.">
+        </div>
+      </figure>
+    </div>
+
+    <div class="deux" data-apparition>
+      <div>
+        <h3>Tes livres, dans presque tous les formats</h3>
+        <p class="corps">Dépose un fichier&nbsp;: la liseuse en extrait le texte et le remet en page.</p>
+        <ul class="puces" aria-label="Formats lus">
+          <li>PDF</li><li>ePub <small>sans DRM</small></li><li>Word</li><li>LibreOffice</li><li>RTF</li><li>Texte</li><li>Markdown</li><li>HTML</li><li>FB2</li><li>Mobi</li><li>Images et BD <small>.cbz</small></li>
+        </ul>
+        <p class="corps">Les scans, les pages photographiées et les BD en .cbz passent par la reconnaissance de texte, page par page.</p>
+      </div>
+      <div>
+        <h3>Surlignages et notes</h3>
+        <p class="corps">Sélectionne un passage&nbsp;: surligne-le, laisses-y une note, ou copie la citation avec sa référence.</p>
+        <p class="corps">Tes surlignages et tes notes se retrouvent dans le sommaire du livre, et tu les exportes en Markdown.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ vie privée ═══ -->
+<section class="bloc" id="vie-privee" aria-labelledby="t-prive">
+  <div class="page">
+    <h2 id="t-prive" data-apparition>Chez toi, et nulle part ailleurs.</h2>
+    <ul class="trois" data-apparition>
+      <li>
+        <h3>Sur ton ordinateur</h3>
+        <p>Tes livres, tes notes et tes réglages restent sur ton ordinateur. Rien n’est envoyé.</p>
+      </li>
+      <li>
+        <h3>Sans compte</h3>
+        <p>Pas d’inscription, pas d’adresse e-mail à donner. Tu installes, tu lis.</p>
+      </li>
+      <li>
+        <h3>Sans suivi</h3>
+        <p>Pas de statistiques, pas de publicité, pas de traceur. Ce site n’en met aucun non plus.</p>
+      </li>
+    </ul>
+    <div class="reserve" data-apparition><p><strong>Une seule exception&nbsp;:</strong> la reconnaissance de texte, pour les scans et les photos, télécharge son modèle de langue depuis Internet la première fois que tu t’en sers. Le reste fonctionne sans connexion.</p></div>
+  </div>
+</section>
+
+<!-- ═══ télécharger ═══ -->
+<section class="bloc" id="telecharger" aria-labelledby="t-tele">
+  <div class="page">
+    <h2 id="t-tele" data-apparition>Télécharge la liseuse.</h2>
+    <p class="intro" data-apparition>Gratuite, sans compte, et libre (licence MIT). Version <span data-texte="version">1.0.0</span>.</p>
+
+    <div class="cartes" data-apparition>
+      <div class="carte">
+        <span class="etiquette">Windows 10 et 11 · 64 bits</span>
+        <h3>Pour Windows</h3>
+        <p>Un installeur, comme pour n’importe quelle application. Ou une version portable, qui se lance depuis un dossier sans rien installer.</p>
+        <div class="actions">
+          <a class="btn" href="#telecharger" data-lien="windowsInstalleur"><svg class="i" aria-hidden="true" focusable="false"><use href="#i-down"/></svg>Télécharger l’installeur<span class="taille" data-taille="windowsInstalleur" hidden></span></a>
+        </div>
+        <p class="alt">Ou la <a href="#telecharger" data-lien="windowsPortable">version portable (.zip)</a><span data-taille="windowsPortable" hidden></span>.</p>
+      </div>
+      <div class="carte">
+        <span class="etiquette">Mac et Linux</span>
+        <h3>Un seul fichier</h3>
+        <p>Pas encore d’application pour Mac. En attendant, <code>liseuse.html</code> s’ouvre dans Chrome ou Edge, sur Mac comme sous Linux&nbsp;: c’est la même liseuse.</p>
+        <div class="actions">
+          <a class="btn fil" href="#telecharger" data-lien="pageHtml"><svg class="i" aria-hidden="true" focusable="false"><use href="#i-down"/></svg>Télécharger liseuse.html<span class="taille" data-taille="pageHtml" hidden></span></a>
+        </div>
+        <p class="alt">Ou les <a href="#telecharger" data-lien="sources">sources sur GitHub</a>.</p>
+      </div>
+    </div>
+
+    <div class="alerte" data-apparition>
+      <div>
+        <h3>Windows affiche un avertissement&nbsp;?</h3>
+        <p>C’est normal&nbsp;: l’application n’est pas encore signée, et Windows prévient pour toute application qu’il ne connaît pas. Les sources sont publiques, et tout reste sur ton ordinateur.</p>
+      </div>
+      <ol class="pas" aria-label="Pour continuer l’installation">
+        <li><span>Dans la fenêtre «&nbsp;Windows a protégé votre ordinateur&nbsp;», clique sur <b>Informations complémentaires</b>.</span></li>
+        <li><span>Puis clique sur <b>Exécuter quand même</b>. L’installation se lance.</span></li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ questions ═══ -->
+<section class="bloc" id="questions" aria-labelledby="t-faq">
+  <div class="page">
+    <h2 id="t-faq" data-apparition>Questions.</h2>
+    <div class="questions" data-apparition>
+      <details>
+        <summary>Est-ce gratuit&nbsp;?<svg class="i" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
+        <div class="reponse"><p>Oui, sans compte et sans publicité. Le code est libre, sous licence MIT&nbsp;: tu peux le lire, le modifier et le partager sur <a href="https://github.com/Veakss/liseuse-lampe" data-lien="depot">GitHub</a>.</p></div>
+      </details>
+      <details>
+        <summary>Faut-il Internet pour lire&nbsp;?<svg class="i" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
+        <div class="reponse"><p>Non. Une fois installée, la liseuse fonctionne sans connexion. Seule la reconnaissance de texte (scans et photos) a besoin d’Internet, la première fois.</p></div>
+      </details>
+      <details>
+        <summary>Windows me met en garde. Je peux continuer&nbsp;?<svg class="i" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
+        <div class="reponse"><p>Oui. L’application n’est pas encore signée, alors Windows prévient. Clique sur «&nbsp;Informations complémentaires&nbsp;», puis sur «&nbsp;Exécuter quand même&nbsp;». Télécharge-la depuis cette page ou depuis le dépôt GitHub, pas ailleurs.</p></div>
+      </details>
+      <details>
+        <summary>Et sur Mac ou sous Linux&nbsp;?<svg class="i" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
+        <div class="reponse"><p>Il n’y a pas encore d’application pour Mac. En attendant, télécharge <a href="#telecharger" data-lien="pageHtml">liseuse.html</a> et ouvre-le dans Chrome ou Edge&nbsp;: ça marche aussi sous Linux.</p></div>
+      </details>
+      <details>
+        <summary>Quels livres puis-je ouvrir&nbsp;?<svg class="i" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
+        <div class="reponse"><p>PDF, ePub, Word, LibreOffice, RTF, texte, Markdown, HTML, FB2, Mobi, et les images ou les BD en .cbz. Les fichiers protégés par un DRM ne s’ouvrent pas.</p></div>
+      </details>
+      <details>
+        <summary>Où sont mes livres et mes notes&nbsp;?<svg class="i" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
+        <div class="reponse"><p>Sur ton ordinateur, dans l’application. Il n’y a pas de synchronisation&nbsp;: sur un autre ordinateur, tu rouvres le fichier du livre.</p></div>
+      </details>
+      <details>
+        <summary>Puis-je mettre ma propre image en fond&nbsp;?<svg class="i" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
+        <div class="reponse"><p>Oui, avec «&nbsp;Mon image&nbsp;» dans le choix de la scène. Il y a aussi des fonds abstraits&nbsp;: lignes, relief, halo, trame, poussière.</p></div>
+      </details>
+      <details>
+        <summary>Un problème, une idée&nbsp;?<svg class="i" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
+        <div class="reponse"><p>Écris-le sur la <a href="#questions" data-lien="problemes">page des problèmes du dépôt GitHub</a>.</p></div>
+      </details>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="pied">
+  <div class="page">
+    <div class="a">
+      <p data-texte="credit">Un projet indépendant de Victor Dumanois · 2026</p>
+      <p class="liens"><a href="https://github.com/Veakss/liseuse-lampe" data-lien="depot">GitHub</a> <a href="https://github.com/Veakss/liseuse-lampe/releases" data-lien="versions">Versions</a> <a href="https://github.com/Veakss/liseuse-lampe/issues" data-lien="problemes">Signaler un problème</a></p>
+      <p>Code libre, sous licence MIT. Polices Literata et Geist (licence OFL), hébergées sur ce site. Aucun cookie, aucun service extérieur.</p>
+      <p>Hébergement&nbsp;: OVH SAS, 2 rue Kellermann, 59100 Roubaix, France.</p>
+    </div>
+    <svg class="i signe" aria-hidden="true" focusable="false"><use href="#i-lamp"/></svg>
+  </div>
+</footer>
+
+<dialog class="visionneuse" aria-label="Une scène en grand">
+  <img src="" alt="" width="1400" height="875">
+  <div class="barre">
+    <p><span class="nom"></span><span class="rang"></span></p>
+    <div class="boutons">
+      <button type="button" class="prec" aria-label="Scène précédente"><svg class="i" aria-hidden="true" focusable="false"><use href="#i-prev"/></svg></button>
+      <button type="button" class="suiv" aria-label="Scène suivante"><svg class="i" aria-hidden="true" focusable="false"><use href="#i-next"/></svg></button>
+      <button type="button" class="fermer" aria-label="Fermer"><svg class="i" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
+    </div>
+  </div>
+</dialog>
+
+<script src="config.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

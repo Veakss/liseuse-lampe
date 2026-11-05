@@ -1,0 +1,182 @@
+[
+ {
+  "fam": "Atkinson Hyperlegible",
+  "style": "italic",
+  "wght": "400",
+  "sub": "latin-ext",
+  "file": "AtkinsonHyperlegible-italic-400-latin-ext.woff2",
+  "range": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+  "size": 6088
+ },
+ {
+  "fam": "Atkinson Hyperlegible",
+  "style": "italic",
+  "wght": "400",
+  "sub": "latin",
+  "file": "AtkinsonHyperlegible-italic-400-latin.woff2",
+  "range": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+  "size": 12068
+ },
+ {
+  "fam": "Atkinson Hyperlegible",
+  "style": "italic",
+  "wght": "700",
+  "sub": "latin-ext",
+  "file": "AtkinsonHyperlegible-italic-700-latin-ext.woff2",
+  "range": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+  "size": 6220
+ },
+ {
+  "fam": "Atkinson Hyperlegible",
+  "style": "italic",
+  "wght": "700",
+  "sub": "latin",
+  "file": "AtkinsonHyperlegible-italic-700-latin.woff2",
+  "range": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+  "size": 12284
+ },
+ {
+  "fam": "Atkinson Hyperlegible",
+  "style": "normal",
+  "wght": "400",
+  "sub": "latin-ext",
+  "file": "AtkinsonHyperlegible-normal-400-latin-ext.woff2",
+  "range": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+  "size": 5768
+ },
+ {
+  "fam": "Atkinson Hyperlegible",
+  "style": "normal",
+  "wght": "400",
+  "sub": "latin",
+  "file": "AtkinsonHyperlegible-normal-400-latin.woff2",
+  "range": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+  "size": 11208
+ },
+ {
+  "fam": "Atkinson Hyperlegible",
+  "style": "normal",
+  "wght": "700",
+  "sub": "latin-ext",
+  "file": "AtkinsonHyperlegible-normal-700-latin-ext.woff2",
+  "range": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+  "size": 5800
+ },
+ {
+  "fam": "Atkinson Hyperlegible",
+  "style": "normal",
+  "wght": "700",
+  "sub": "latin",
+  "file": "AtkinsonHyperlegible-normal-700-latin.woff2",
+  "range": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+  "size": 11364
+ },
+ {
+  "fam": "Hanken Grotesk",
+  "style": "italic",
+  "wght": "400 700",
+  "sub": "latin-ext",
+  "file": "HankenGrotesk-italic-400_700-latin-ext.woff2",
+  "range": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+  "size": 20288
+ },
+ {
+  "fam": "Hanken Grotesk",
+  "style": "italic",
+  "wght": "400 700",
+  "sub": "latin",
+  "file": "HankenGrotesk-italic-400_700-latin.woff2",
+  "range": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+  "size": 35684
+ },
+ {
+  "fam": "Hanken Grotesk",
+  "style": "normal",
+  "wght": "400 700",
+  "sub": "latin-ext",
+  "file": "HankenGrotesk-normal-400_700-latin-ext.woff2",
+  "range": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+  "size": 19572
+ },
+ {
+  "fam": "Hanken Grotesk",
+  "style": "normal",
+  "wght": "400 700",
+  "sub": "latin",
+  "file": "HankenGrotesk-normal-400_700-latin.woff2",
+  "range": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+  "size": 34664
+ },
+ {
+  "fam": "Literata",
+  "style": "italic",
+  "wght": "400 700",
+  "sub": "latin-ext",
+  "file": "Literata-italic-400_700-latin-ext.woff2",
+  "range": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+  "size": 71628
+ },
+ {
+  "fam": "Literata",
+  "style": "italic",
+  "wght": "400 700",
+  "sub": "latin",
+  "file": "Literata-italic-400_700-latin.woff2",
+  "range": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+  "size": 88632
+ },
+ {
+  "fam": "Literata",
+  "style": "normal",
+  "wght": "400 700",
+  "sub": "latin-ext",
+  "file": "Literata-normal-400_700-latin-ext.woff2",
+  "range": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+  "size": 70736
+ },
+ {
+  "fam": "Literata",
+  "style": "normal",
+  "wght": "400 700",
+  "sub": "latin",
+  "file": "Literata-normal-400_700-latin.woff2",
+  "range": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+  "size": 85780
+ },
+ {
+  "fam": "Source Serif 4",
+  "style": "italic",
+  "wght": "400 700",
+  "sub": "latin-ext",
+  "file": "SourceSerif4-italic-400_700-latin-ext.woff2",
+  "range": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+  "size": 110236
+ },
+ {
+  "fam": "Source Serif 4",
+  "style": "italic",
+  "wght": "400 700",
+  "sub": "latin",
+  "file": "SourceSerif4-italic-400_700-latin.woff2",
+  "range": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+  "size": 129940
+ },
+ {
+  "fam": "Source Serif 4",
+  "style": "normal",
+  "wght": "400 700",
+  "sub": "latin-ext",
+  "file": "SourceSerif4-normal-400_700-latin-ext.woff2",
+  "range": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+  "size": 100752
+ },
+ {
+  "fam": "Source Serif 4",
+  "style": "normal",
+  "wght": "400 700",
+  "sub": "latin",
+  "file": "SourceSerif4-normal-400_700-latin.woff2",
+  "range": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+  "size": 122168
+ }
+]

@@ -1,0 +1,14 @@
+.DS_Store
+# pages construites (build.py)
+app/liseuse.html
+app/dist/
+# application de bureau
+desktop/node_modules/
+desktop/dist/
+desktop/app/
+desktop/test/last-run.json
+# captures du site
+site/shots/.tmp/
+site/shots/.chrome-prof/
+# profils Chrome des essais
+**/chrome-prof*/
