@@ -1,6 +1,6 @@
 # Site de « Liseuse à la lampe »
 
-Une page statique (HTML, CSS, un peu de JavaScript), sans framework ni service extérieur. Elle est publiée sur **https://exigelabs.fr/liseuse/**. Les chemins sont relatifs : le dossier peut aussi aller à la racine d'un autre domaine.
+Une page statique (HTML, CSS, un peu de JavaScript), sans framework ni service extérieur. Elle était prévue pour **https://exigelabs.fr/liseuse/** ; cette adresse ouvre finalement la liseuse elle-même (voir `web/` à la racine du dépôt), et ce site n'est pas en ligne pour l'instant. Les chemins sont relatifs : le dossier peut aussi aller à la racine d'un autre domaine.
 
 ## Ce qu'il faut changer pour une nouvelle version
 

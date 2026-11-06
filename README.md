@@ -7,9 +7,11 @@ Une liseuse qui tient dans une seule page. Ton livre s'ouvre dans une scène pei
 - **Surlignages et notes**, exportables en Markdown.
 - **Rien ne sort de ton ordinateur** : tes livres, tes notes et tes réglages restent sur ta machine. Les polices sont dans l'appli, qui ne télécharge rien. Une seule exception : la reconnaissance de texte des pages scannées télécharge son moteur la première fois.
 
-## Télécharger
+## Lire en ligne ou télécharger
 
-Le site : **https://exigelabs.fr/liseuse/**. Les fichiers sont joints à chaque [version](https://github.com/Veakss/liseuse-lampe/releases) :
+**En ligne, sans rien installer : https://exigelabs.fr/liseuse/** (CosyBook : *le même livre, une autre histoire*). Cette adresse ne sert qu'une page de quelques Ko : elle charge `web/liseuse.html` depuis ce dépôt par jsDelivr, vérifie son empreinte SHA-256, puis l'ouvre. Tes livres, tes notes et tes réglages restent dans ton navigateur.
+
+Pour l'avoir sur ta machine, les fichiers sont joints à chaque [version](https://github.com/Veakss/liseuse-lampe/releases) :
 
 | Système | Fichier |
 |---|---|
@@ -23,8 +25,9 @@ L'application Windows n'est pas encore signée. Au premier lancement, Windows pe
 | Dossier | Contenu |
 |---|---|
 | `app/` | Les sources de la page : `liseuse.template.html` (interface et lecture), `supports.js` (les supports du texte), `scenes.js` (les scènes peintes), `importers.js` (les formats de fichier), `sounds/` (les sons, créés dans le navigateur), `covers.js` (les couvertures de la bibliothèque), `fonts/` (les polices) |
+| `web/` | `liseuse.html`, la page construite (`PUBLIC=1`) telle que le navigateur la reçoit en ligne, et `chargeur.html`, la petite page posée sur exigelabs.fr/liseuse/ qui la charge et vérifie son empreinte |
 | `desktop/` | L'application de bureau (Electron) qui embarque la page |
-| `site/` | Le site de téléchargement, en pages statiques |
+| `site/` | Un site de présentation, en pages statiques (pas en ligne pour l'instant) |
 
 ### Construire la page
 
