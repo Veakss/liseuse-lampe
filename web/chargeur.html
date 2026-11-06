@@ -135,7 +135,7 @@
     $('pourquoi').textContent = raison === 'empreinte'
       ? 'Le fichier reçu ne correspond pas à la version publiée : par prudence, il n’est pas ouvert. Réessaie un peu plus tard, ou télécharge la liseuse.'
       : navigator.onLine === false
-        ? 'Pas de connexion pour l’instant. Une fois chargé, CosyBook s’ouvre ensuite même sans connexion.'
+        ? 'Pas de connexion pour l’instant : réessaie une fois reconnecté.'
         : 'Le serveur qui la sert n’a pas répondu. Réessaie dans un moment, ou télécharge la liseuse.';
     echec.hidden = false;
     document.documentElement.className = '';
