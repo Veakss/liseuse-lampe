@@ -313,7 +313,20 @@ body.amb.int-page .column {
   box-shadow: 0 0 0 1px rgba(0, 0, 0, .4), 0 0 80px 12px rgba(0, 0, 0, .55);
 }
 body.amb.int-page #pageLight { display: block; position: fixed; top: 0; height: 100%; z-index: 2; pointer-events: none; }
-#pageLight.left { background: linear-gradient(90deg, rgba(255, 166, 80, .16), rgba(255, 166, 80, 0) 42%, rgba(0, 0, 0, 0) 58%, rgba(28, 14, 4, .2)), var(--grain, none); }
+/* The lamp's light on the sheet: a pool on its side, at its height and in its colour (--nat-ly, --nat-lc: the scene's
+   first glow, see amb.nativeLight), the page dimmer far from it, over a lighter wash from that side. It goes with the
+   lamps (its opacity follows --lampk), so it is faint by day and flickers with a fire. The rest of the dimming is on
+   #sheet, under the text, and stays still: the far side hardly moves when the fire flickers (it used to brighten as
+   the fire dipped). */
+#pageLight.left { background:
+  radial-gradient(ellipse 90% 42% at 0 var(--nat-ly, 45%), color-mix(in srgb, var(--nat-lc, #fff6e4) 17%, transparent), color-mix(in srgb, var(--nat-lc, #fff6e4) 7%, transparent) 40%, color-mix(in srgb, var(--nat-lc, #fff6e4) 0%, transparent)),
+  radial-gradient(ellipse 160% 85% at 0 var(--nat-ly, 45%), rgba(24, 13, 5, 0) 30%, rgba(24, 13, 5, .06) 65%, rgba(24, 13, 5, .15)),
+  linear-gradient(90deg, rgba(255, 166, 80, .08), rgba(255, 166, 80, 0) 42%, rgba(0, 0, 0, 0) 58%, rgba(28, 14, 4, .06)), var(--grain, none); }
+/* (when a lamp comes on or goes out, the pool glides to its new place and colour, as the lamp's glow fades in or out) */
+@property --nat-lc { syntax: '<color>'; inherits: false; initial-value: #fff6e4; }
+@property --nat-ly { syntax: '<length-percentage>'; inherits: false; initial-value: 45%; }
+body.amb.int-page #sheet { transition: --nat-ly 1.2s ease-in-out; }
+@media (prefers-reduced-motion: reduce) { body.amb.int-page #sheet { transition: none; } }
 #pageLight.bottom { background: linear-gradient(0deg, rgba(255, 166, 80, .15), rgba(255, 166, 80, 0) 50%), linear-gradient(180deg, rgba(40, 50, 90, .06), rgba(40, 50, 90, 0) 30%), var(--grain, none); }
 #pageLight.flicker { animation: fire 3.4s steps(12, jump-none) infinite; }
 /* Text in the scene, in the open: light ink over a feathered shade, the scene stays visible around it. */
@@ -361,10 +374,8 @@ body.amb.dock-bright .dock.glass .dk svg.i, body.amb.dock-bright .selbar.glass .
 body.amb.dock-bright .dock.glass .dk.open { background: rgba(0, 0, 0, .1); }
 body.amb.dock-bright .dock.glass .dk-sep { background: rgba(0, 0, 0, .16); }
 body.amb.dock-bright .selbar #selHl svg.i { color: #c98f00; }
-/* (from light icons to dark ones and back in a second, as the scene under it brightens or darkens: not at once) */
-body.amb .dock.glass, body.amb .selbar.glass, body.amb .dock.glass .dk-sep { transition: background-color 1s ease; }
-body.amb .dock.glass .dk, body.amb .selbar.glass .dk { transition: background .2s, opacity .15s, color 1s ease; }
-body.amb .dock.glass .dk svg.i, body.amb .selbar.glass .dk svg.i { transition: transform .35s var(--spring), filter 1s ease, color 1s ease; }
+body.amb .dock.glass .dk, body.amb .selbar.glass .dk { transition: background .2s, opacity .15s; }
+body.amb .dock.glass .dk svg.i, body.amb .selbar.glass .dk svg.i { transition: transform .35s var(--spring); }
 /* Under the pointer, no icon grows out of the bar: a lens of glass glides from icon to icon inside it (one for the bar, on a
    spring), lit from the top where the pointer is; the icon swells a hair and sinks when pressed. */
 body.amb .dock.glass { position: relative; }
@@ -453,9 +464,28 @@ body.amb .column, body.amb.int-page .column { background: none; box-shadow: none
   box-shadow: 0 0 90px rgba(0, 0, 0, calc(var(--a) * .35));
 }
 body.amb:not(.int-air):not(.int-flat):not(.int-sup) #sheet { display: block; }
-body.amb.int-page #sheet { box-shadow: 0 0 0 1px rgba(0, 0, 0, calc(var(--a) * .4)), 0 0 80px 12px rgba(0, 0, 0, calc(var(--a) * .55)); }
+/* The scene's paper (« Feuille »): a sheet with a tooth (--nat-paper, a tile made once, see nativePaper), dimmer far from
+   the lamp; its edge catches the light on the lamp's side, a hairline and a soft shadow set it off the scene, deeper on
+   the side away from the light. All of it is painted once: nothing here moves. (The sheet runs 140 px past the window
+   at the top and the bottom: the lamp's height is moved down by as much.) */
+body.amb.int-page #sheet {
+  --nat-dim: 24, 13, 5;
+  background: radial-gradient(ellipse 160% 85% at 0 calc(var(--nat-ly, 45%) + 140px), rgba(var(--nat-dim), 0) 30%, rgba(var(--nat-dim), calc(var(--a) * .05)) 65%, rgba(var(--nat-dim), calc(var(--a) * .12))),
+    var(--nat-paper, none) 0 0 / 256px 256px, color-mix(in srgb, var(--sheet-bg, #000) calc(var(--a) * 100%), transparent);
+  box-shadow: inset 1px 0 0 rgba(255, 247, 230, calc(var(--a) * .5)), inset -1px 0 0 rgba(40, 24, 10, calc(var(--a) * .1)),
+    0 0 0 .5px rgba(30, 18, 8, calc(var(--a) * .35)), 0 0 2px rgba(0, 0, 0, calc(var(--a) * .3)),
+    12px 0 36px -4px rgba(0, 0, 0, calc(var(--a) * .3)), 0 0 90px 6px rgba(0, 0, 0, calc(var(--a) * .32));
+}
+/* (lit from below, the snow's candles: dimmer toward the top, both edges alike) */
+body.amb.int-page #sheet.nat-bottom {
+  background: radial-gradient(ellipse 130% 95% at 50% calc(100% - 140px), rgba(var(--nat-dim), 0) 30%, rgba(var(--nat-dim), calc(var(--a) * .08)) 65%, rgba(var(--nat-dim), calc(var(--a) * .2))),
+    var(--nat-paper, none) 0 0 / 256px 256px, color-mix(in srgb, var(--sheet-bg, #000) calc(var(--a) * 100%), transparent);
+  box-shadow: inset 1px 0 0 rgba(255, 247, 230, calc(var(--a) * .3)), inset -1px 0 0 rgba(255, 247, 230, calc(var(--a) * .3)),
+    0 0 0 .5px rgba(30, 18, 8, calc(var(--a) * .35)), 0 0 2px rgba(0, 0, 0, calc(var(--a) * .3)),
+    0 0 30px rgba(0, 0, 0, calc(var(--a) * .2)), 0 0 90px 6px rgba(0, 0, 0, calc(var(--a) * .32));
+}
 #sheet.frost { -webkit-backdrop-filter: blur(14px) saturate(1.1); backdrop-filter: blur(14px) saturate(1.1); }
-body.amb.int-page #pageLight { opacity: calc(var(--sheet-a, 1) * (.35 + .65 * var(--lampk, 1))); transition: opacity .3s linear; } /* (--lampk moves 4 times a second: it glides between) */
+body.amb.int-page #pageLight { opacity: calc(var(--sheet-a, 1) * (.35 + .65 * var(--lampk, 1))); transition: opacity .3s linear, --nat-lc 1.2s ease-in-out, --nat-ly 1.2s ease-in-out; } /* (--lampk moves 4 times a second: it glides between) */
 #airShade {
   --s: calc(var(--shade, .9) * .82);
   background: linear-gradient(90deg,
@@ -701,29 +731,31 @@ body.amb.sup-folio .reader { display: none; }
   background-color: var(--fol-paper, #f2e9d5); color: var(--fol-ink, #2c231a);
 }
 .fol-pg[hidden] { display: none; }
+.fol.toning .fol-pg { transition: background-color 1s ease-in-out; } /* the paper's new light, in step with the painted book's fade */
 .fol-pg::before, .fol-pg::after { content: ""; position: absolute; inset: 0; pointer-events: none; }
 .fol-pg::before {
   background-image: var(--fol-tex), var(--fol-mot); background-size: 256px 256px, 384px 384px;
   background-position: var(--tx, 0) var(--ty, 0), var(--ty, 0) var(--tx, 0); opacity: .95;
 }
-/* the spine side sinks into shade with a faint crest of light before it; the outer edge curves down a little */
+/* the spine side sinks into shade along a smooth curve (no kink where a stop was) with a faint crest of light before it;
+   the outer edge curves down a little */
 .fol-pg.recto::after { background:
-  linear-gradient(90deg, rgba(var(--fol-sh), .34) 0, rgba(var(--fol-sh), .16) 2.2%, rgba(var(--fol-sh), .06) 6.5%, rgba(var(--fol-sh), 0) 14%),
-  linear-gradient(90deg, rgba(255, 250, 236, 0) 8%, rgba(255, 250, 236, .1) 13%, rgba(255, 250, 236, 0) 21%),
-  linear-gradient(270deg, rgba(var(--fol-sh), .12) 0, rgba(var(--fol-sh), .03) 2.5%, rgba(var(--fol-sh), 0) 6%),
+  linear-gradient(90deg, rgba(var(--fol-sh), .36) 0, rgba(var(--fol-sh), .25) 1%, rgba(var(--fol-sh), .175) 2%, rgba(var(--fol-sh), .11) 3.5%, rgba(var(--fol-sh), .06) 5.5%, rgba(var(--fol-sh), .025) 8%, rgba(var(--fol-sh), .008) 11%, rgba(var(--fol-sh), 0) 14%),
+  linear-gradient(90deg, rgba(255, 250, 236, 0) 8%, rgba(255, 250, 236, .07) 13%, rgba(255, 250, 236, 0) 21%),
+  linear-gradient(270deg, rgba(var(--fol-sh), .12) 0, rgba(var(--fol-sh), .055) 1.2%, rgba(var(--fol-sh), .02) 3%, rgba(var(--fol-sh), 0) 6%),
   linear-gradient(180deg, rgba(255, 250, 236, .05), rgba(255, 250, 236, 0) 25%, rgba(var(--fol-sh), 0) 82%, rgba(var(--fol-sh), .05)); }
 .fol-pg.verso::after { background:
-  linear-gradient(270deg, rgba(var(--fol-sh), .34) 0, rgba(var(--fol-sh), .16) 2.2%, rgba(var(--fol-sh), .06) 6.5%, rgba(var(--fol-sh), 0) 14%),
-  linear-gradient(270deg, rgba(255, 250, 236, 0) 8%, rgba(255, 250, 236, .1) 13%, rgba(255, 250, 236, 0) 21%),
-  linear-gradient(90deg, rgba(var(--fol-sh), .12) 0, rgba(var(--fol-sh), .03) 2.5%, rgba(var(--fol-sh), 0) 6%),
+  linear-gradient(270deg, rgba(var(--fol-sh), .36) 0, rgba(var(--fol-sh), .25) 1%, rgba(var(--fol-sh), .175) 2%, rgba(var(--fol-sh), .11) 3.5%, rgba(var(--fol-sh), .06) 5.5%, rgba(var(--fol-sh), .025) 8%, rgba(var(--fol-sh), .008) 11%, rgba(var(--fol-sh), 0) 14%),
+  linear-gradient(270deg, rgba(255, 250, 236, 0) 8%, rgba(255, 250, 236, .07) 13%, rgba(255, 250, 236, 0) 21%),
+  linear-gradient(90deg, rgba(var(--fol-sh), .12) 0, rgba(var(--fol-sh), .055) 1.2%, rgba(var(--fol-sh), .02) 3%, rgba(var(--fol-sh), 0) 6%),
   linear-gradient(180deg, rgba(255, 250, 236, .05), rgba(255, 250, 236, 0) 25%, rgba(var(--fol-sh), 0) 82%, rgba(var(--fol-sh), .05)); }
 .fol.dark .fol-pg.recto::after { background:
-  linear-gradient(90deg, rgba(0, 0, 0, .5) 0, rgba(0, 0, 0, .26) 2.2%, rgba(0, 0, 0, .1) 6.5%, rgba(0, 0, 0, 0) 14%),
+  linear-gradient(90deg, rgba(0, 0, 0, .5) 0, rgba(0, 0, 0, .35) 1%, rgba(0, 0, 0, .25) 2%, rgba(0, 0, 0, .15) 3.5%, rgba(0, 0, 0, .085) 5.5%, rgba(0, 0, 0, .035) 8%, rgba(0, 0, 0, .01) 11%, rgba(0, 0, 0, 0) 14%),
   linear-gradient(90deg, rgba(255, 250, 236, 0) 8%, rgba(255, 250, 236, .045) 13%, rgba(255, 250, 236, 0) 21%),
   linear-gradient(270deg, rgba(0, 0, 0, .22) 0, rgba(0, 0, 0, 0) 5%),
   linear-gradient(180deg, rgba(255, 250, 236, .03), rgba(255, 250, 236, 0) 25%, rgba(0, 0, 0, 0) 80%, rgba(0, 0, 0, .1)); }
 .fol.dark .fol-pg.verso::after { background:
-  linear-gradient(270deg, rgba(0, 0, 0, .5) 0, rgba(0, 0, 0, .26) 2.2%, rgba(0, 0, 0, .1) 6.5%, rgba(0, 0, 0, 0) 14%),
+  linear-gradient(270deg, rgba(0, 0, 0, .5) 0, rgba(0, 0, 0, .35) 1%, rgba(0, 0, 0, .25) 2%, rgba(0, 0, 0, .15) 3.5%, rgba(0, 0, 0, .085) 5.5%, rgba(0, 0, 0, .035) 8%, rgba(0, 0, 0, .01) 11%, rgba(0, 0, 0, 0) 14%),
   linear-gradient(270deg, rgba(255, 250, 236, 0) 8%, rgba(255, 250, 236, .045) 13%, rgba(255, 250, 236, 0) 21%),
   linear-gradient(90deg, rgba(0, 0, 0, .22) 0, rgba(0, 0, 0, 0) 5%),
   linear-gradient(180deg, rgba(255, 250, 236, .03), rgba(255, 250, 236, 0) 25%, rgba(0, 0, 0, 0) 80%, rgba(0, 0, 0, .1)); }
@@ -776,7 +808,9 @@ body.amb.sup-folio .reader { display: none; }
 .fol-ttl { font-size: 1.85em; line-height: 1.2; text-wrap: balance; }
 .fol-tt .fol-orn { margin: 1.3em auto; }
 .fol-tta { font-style: italic; opacity: .7; }
-.fol-pg.end { background-color: color-mix(in srgb, var(--fol-paper) 88%, var(--fol-board, #5a3a22)); }
+/* the endpaper, pasted on the board: a paper of its own, tinted from the binding (--fol-endp), smooth, no running text */
+.fol-pg.end { background-color: var(--fol-endp, color-mix(in srgb, var(--fol-paper) 88%, var(--fol-board, #5a3a22))); }
+.fol-pg.end::before { background-image: var(--fol-tex); background-size: 256px 256px; opacity: .6; }
 /* the contents, on a page */
 .fol-pg.toc .btoc { display: flex; inset: 0; width: auto; height: auto; color: var(--fol-ink); --ink: var(--fol-ink); }
 .fol-pg.toc .btoc.btoc-folio { position: absolute; }
@@ -880,7 +914,8 @@ body.amb mark.an { transition: background-color 1.4s ease, text-decoration-color
 /* Library: the books kept in this browser, lying on a wooden table seen in perspective, in a quiet space that only
    holds the table (a plain backdrop and the soft fall of one light, nothing else). The books are DOM elements on a CSS 3D
    plane: their text stays sharp, the keyboard and screen readers keep working. It takes the reading colours (Papier,
-   Nuit…): the UI tokens are redrawn from --bg / --fg inside it. Nothing animates while it sits there. Textures (paper
+   Nuit…): the UI tokens are redrawn from --bg / --fg inside it. Only the lamp breathes, in small steps, and it rests when
+   nobody stirs (.tb-pool, .tb-hum below). Textures (paper
    grain, book cloth, the wood) are painted once on a canvas at start (tex, in the script), never shipped as images. */
 .lib {
   /* the dark the table stands in: always, whatever the reading colours (the page's --bg/--fg are redrawn here) */
@@ -937,9 +972,27 @@ body.lib-wait .app { visibility: hidden; }
   background: radial-gradient(80% 76% at 50% 62%, rgba(6, 3, 1, 0) 40%, rgba(6, 3, 1, .5) 80%, rgba(6, 3, 1, .8)), rgba(10, 5, 2, .1);
   animation: tb-hum 13.3s ease-in-out infinite;
 }
-@keyframes tb-breathe { 0% { opacity: .9; } 17% { opacity: .98; } 31% { opacity: .86; } 46% { opacity: .95; } 58% { opacity: 1; } 73% { opacity: .84; } 88% { opacity: .93; } 100% { opacity: .9; } }
-@keyframes tb-hum { 0% { opacity: .5; } 22% { opacity: .42; } 41% { opacity: .56; } 60% { opacity: .47; } 61.2% { opacity: .68; } 62.6% { opacity: .49; } 80% { opacity: .6; } 100% { opacity: .5; } }
+/* Both move in small steps rather than smoothly. A smooth change gives a new opacity at every frame, and since .tb-hum
+   covers the whole room, the compositor would redraw the whole table (its hundred 3D faces) 60 times a second while
+   nothing seems to move. Each segment gets one step per .01 of opacity for the pool (about 1.5 levels of 255 at its
+   brightest, below what the eye sees) and per .02 for the hum (under half a level): about ten redraws a second in all,
+   for the same breathing. */
+@keyframes tb-breathe {
+  0% { opacity: .9; animation-timing-function: steps(8); } 17% { opacity: .98; animation-timing-function: steps(12); }
+  31% { opacity: .86; animation-timing-function: steps(9); } 46% { opacity: .95; animation-timing-function: steps(5); }
+  58% { opacity: 1; animation-timing-function: steps(16); } 73% { opacity: .84; animation-timing-function: steps(9); }
+  88% { opacity: .93; animation-timing-function: steps(3); } 100% { opacity: .9; }
+}
+@keyframes tb-hum {
+  0% { opacity: .5; animation-timing-function: steps(4); } 22% { opacity: .42; animation-timing-function: steps(7); }
+  41% { opacity: .56; animation-timing-function: steps(5); } 60% { opacity: .47; animation-timing-function: steps(3); }
+  61.2% { opacity: .68; animation-timing-function: steps(3); } 62.6% { opacity: .49; animation-timing-function: steps(6); }
+  80% { opacity: .6; animation-timing-function: steps(5); } 100% { opacity: .5; }
+}
 body:not(.lib-on) .tb-pool, body:not(.lib-on) .tb-hum { animation-play-state: paused; }
+/* When neither the pointer nor the keyboard has stirred on the table for a while, the breathing holds where it is (lib.stir
+   sets .rest, and takes it off at the next gesture): the table then costs nothing at all while nobody looks at it. */
+.lib.rest .tb-pool, .lib.rest .tb-hum { animation-play-state: paused; }
 /* the table's thickness: its front and its two ends (the far side faces away) */
 .tb-face { position: absolute; pointer-events: none; backface-visibility: hidden; background: var(--wood-edge, #6e4c2f); }
 .tb-face.front { left: 12px; right: 12px; top: calc(100% - 1px); height: var(--tb-T); transform-origin: top; transform: rotateX(calc(var(--tb-th) - 90deg)); border-radius: 0 0 10px 10px / 0 0 7px 7px; /* (turned to face the eye: the edge reads at its full thickness) */ background: linear-gradient(90deg, rgba(6, 3, 1, .7), rgba(6, 3, 1, .1) 26%, rgba(6, 3, 1, 0) 50%, rgba(6, 3, 1, .1) 74%, rgba(6, 3, 1, .7)), linear-gradient(rgba(255, 226, 176, .7), rgba(255, 226, 176, .14) 2px, rgba(255, 226, 176, 0) 45%), linear-gradient(#6e4b2f, #2a1a0f); }
@@ -1245,6 +1298,55 @@ body:not(.amb) .toast {
 }
 body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius: 4px 7px 5px 8px / 7px 4px 8px 5px; border-color: color-mix(in srgb, var(--fg) 22%, transparent); }
 @media (max-width: 560px) { .bar .btn.primary { padding: 0 12px 0 10px; } }
+
+/* ---- 08/11: one size of text on every support, the colours with each support, a larger dock, the book put away ---- */
+/* The dock: larger, and one dark glass whatever the scene, its icons light and drawn a little bolder; it comes in once the
+   scene is painted (no first glimpse of it over the reader's own background). */
+body.amb .dock.glass, body.amb .selbar.glass {
+  --ui-ink: #f5f2ed; --ui-surface: rgba(17, 16, 15, .6); --ui-hover: rgba(255, 255, 255, .12);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, 0) 62%), var(--ui-surface);
+  -webkit-backdrop-filter: blur(18px) saturate(140%); backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, .14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16), 0 16px 40px -14px rgba(0, 0, 0, .6), 0 2px 6px rgba(0, 0, 0, .22);
+}
+body.amb .dock.glass .dk, body.amb .selbar.glass .dk { opacity: .9; }
+body.amb .dock.glass .dk svg.i, body.amb .selbar.glass .dk svg.i, body.amb.dock-bright .dock.glass .dk svg.i { filter: none; }
+body.amb .dock.glass .dk-sep { background: rgba(255, 255, 255, .18); }
+body.amb .dk-lens, body.amb.dock-bright .dk-lens {
+  background: radial-gradient(75% 95% at var(--mx, 50%) 0%, rgba(255, 255, 255, .26), rgba(255, 255, 255, .06) 62%, rgba(255, 255, 255, .03)), rgba(255, 255, 255, .05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), inset 0 0 0 1px rgba(255, 255, 255, .1);
+}
+.dock { gap: 3px; padding: 6px 7px; border-radius: 25px; }
+.dock .dk { width: 46px; height: 46px; border-radius: 17px; }
+.dock .dk svg.i { width: 24px; height: 24px; stroke-width: 1.7; }
+.dock .dk-sep { height: 24px; margin: 0 6px; }
+.dk-lens { border-radius: 17px; }
+body.amb .dock-wrap { opacity: 0; transform: translate(-50%, 10px); }
+body.amb.dock-in .dock-wrap { opacity: 1; transform: translateX(-50%); }
+body.amb.dock-in.idle .dock-wrap { opacity: 0; transform: translate(-50%, 12px); }
+@media (max-width: 560px) { .dock .dk { width: 40px; height: 40px; } .dock .dk svg.i { width: 22px; height: 22px; } .dock .dk-sep { margin: 0 3px; } }
+/* the book waiting in the dock, in yellow */
+body.amb .dock.glass .dk.dk-book { opacity: 1; color: #f6c75a; background: rgba(246, 199, 90, .14); }
+body.amb .dock.glass .dk.dk-book::before { content: ""; position: absolute; bottom: 3px; left: 50%; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: #f6c75a; box-shadow: 0 0 6px #f6c75a; }
+/* the book put away: its layers are not drawn at all while it is */
+body.book-away :is(.app, #sup, #supOld, #bubGL, #bubSpW, #supLeft, #sheet, #pageLight, #drops, #airShade, #supUI, #noteBubs, .selbar, .selnote) { visibility: hidden !important; pointer-events: none !important; }
+/* the yellow dot beside the bar's white one: put the book away */
+.sup-dot.sup-away { background: rgba(246, 199, 90, .92); box-shadow: inset 0 0 0 .5px rgba(255, 255, 255, .4), 0 0 0 .5px rgba(0, 0, 0, .16), 0 0 7px rgba(246, 199, 90, .55); }
+.sup-dot.sup-away:hover { background: #ffd56e; transform: scale(1.3); }
+/* the reading settings: the page's colours only outside the ambiance (in it, each support has its own) */
+body.amb #secCols { display: none; }
+/* the support's own settings under the previews */
+.sup-cols { display: grid; gap: 9px; }
+.swatches.sm { gap: 8px; }
+.swatches.sm .sw { width: 26px; height: 26px; font-size: 12px; }
+.swatches.sm .sw[aria-checked="true"] { outline: 1.5px solid var(--accent); outline-offset: 2px; }
+#spNat:empty, #spNat[hidden] { display: none; }
+.sup-opts .switch-row { font-size: 13px; }
+.sup-hint { margin: 12px 0 0; max-width: 440px; }
+#popInt .bub-opts .row, #popInt .sup-opts .row { min-width: 0; }
+/* the dock's panels: a darker glass, legible over a light page as over the night */
+body.amb .pop.glass { --ui-surface: rgba(19, 18, 17, .8); }
+
 </style>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -1265,6 +1367,7 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
   <symbol id="i-close" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17"/></symbol>
   <symbol id="i-pen" viewBox="0 0 24 24"><path d="m14.6 4.2 5.2 5.2-8.6 8.6H6v-5.2z"/><path d="m11.8 7 5.2 5.2M3.8 20.5h8.4"/></symbol>
   <symbol id="i-note" viewBox="0 0 24 24"><path d="M5.2 4.8h13.6a1.7 1.7 0 0 1 1.7 1.7v8.4a1.7 1.7 0 0 1-1.7 1.7H12l-4.6 3.6v-3.6H5.2a1.7 1.7 0 0 1-1.7-1.7V6.5a1.7 1.7 0 0 1 1.7-1.7z"/><path d="M8 9.2h8M8 12.3h5"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 6.6C10.2 5.2 7.6 4.6 4.5 4.8v13.3c3.1-.2 5.7.4 7.5 1.8 1.8-1.4 4.4-2 7.5-1.8V4.8c-3.1-.2-5.7.4-7.5 1.8z"/><path d="M12 6.6v13.3"/></symbol>
   <symbol id="i-lib" viewBox="0 0 24 24"><path d="M5 4.5h3.2v15H5zM10.2 4.5h3.2v15h-3.2z"/><path d="m15.6 5.6 3-.8 3.4 13.6-3 .8z"/><path d="M3 19.5h18"/></symbol>
   <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5.5v13M5.5 12h13"/></symbol>
   <symbol id="i-more" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.3" fill="currentColor" stroke="none"/></symbol>
@@ -1315,14 +1418,13 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
 <aside class="drawer right" id="settings" hidden aria-label="Réglages">
   <header>Réglages <button class="x" type="button" data-close="settings" aria-label="Fermer les réglages"><svg class="i"><use href="#i-close"/></svg></button></header>
   <div class="body">
-    <section class="sec">
-      <h4>Couleurs</h4>
+    <section class="sec" id="secCols">
+      <h4>Couleurs de la page</h4>
       <div class="swatches" id="swatches"></div>
       <div class="pickers">
         <label class="pick"><input type="color" id="bgPick"> Fond</label>
         <label class="pick"><input type="color" id="fgPick"> Texte</label>
       </div>
-      <p class="hint int-hint" id="supColHint">Posé sur un support (feuille, chevalet, cadre, livre, écran, bulle), le texte prend les couleurs de la scène. Choisis « Simple » dans le dock pour retrouver les tiennes.</p>
     </section>
     <section class="sec">
       <h4>Police</h4>
@@ -1332,7 +1434,7 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
     </section>
     <section class="sec">
       <h4>Mise en page</h4>
-      <div class="row"><label for="size">Taille</label><output id="sizeOut"></output><input type="range" id="size" data-k="size" min="14" max="32" step="1" data-ticks="10" data-labels="ends"></div>
+      <div class="row"><label for="size">Taille</label><output id="sizeOut"></output><input type="range" id="size" data-k="size" min="12" max="40" step="1" data-ticks="8" data-labels="ends"></div>
       <div class="row"><label for="lh">Interligne</label><output id="lhOut"></output><input type="range" id="lh" data-k="lh" min="1.25" max="2.3" step="0.05" data-ticks="8" data-labels="ends"></div>
       <div class="row"><label for="ws">Espacement des mots</label><output id="wsOut"></output><input type="range" id="ws" data-k="ws" min="-0.05" max="0.6" step="0.01" data-ticks="8"></div>
       <div class="row"><label for="ls">Espacement des lettres</label><output id="lsOut"></output><input type="range" id="ls" data-k="ls" min="-0.02" max="0.12" step="0.005" data-ticks="8"></div>
@@ -1347,7 +1449,7 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
     </section>
     <section class="sec">
       <button class="btn sm" id="reset" type="button">Rétablir les valeurs d’origine</button>
-      <p class="hint">Couleurs, police et mise en page. L’ambiance, les supports et les notes ne changent pas.</p>
+      <p class="hint" id="resetHint">Police et mise en page, les mêmes sur tous les supports. Les couleurs se règlent avec chaque support, dans le dock.</p>
     </section>
   </div>
 </aside>
@@ -1371,15 +1473,15 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
 
 <div class="dock-wrap" id="ambBar">
   <div class="dock glass" role="toolbar" aria-label="Ambiance">
+    <button class="dk dk-book" type="button" id="dkBook" data-tip="Ramener le livre" aria-label="Ramener le livre" hidden><svg class="i"><use href="#i-book"/></svg></button>
+    <span class="dk-sep" id="dkBookSep" hidden></span>
     <button class="dk" type="button" id="dkScene" data-pop="popScene" data-tip="Scène" aria-label="Scène" aria-expanded="false"><svg class="i"><use href="#i-scene"/></svg></button>
     <button class="dk" type="button" id="dkWeather" data-pop="popWeather" data-tip="Météo" aria-label="Météo" aria-expanded="false"><svg class="i"><use href="#i-weather"/></svg></button>
     <span class="dk-sep"></span>
     <button class="dk" type="button" id="dkInt" data-pop="popInt" data-tip="Support du texte" aria-label="Support du texte" aria-expanded="false"><svg class="i"><use href="#i-textin"/></svg></button>
     <button class="dk" type="button" id="dkPrecip" data-pop="popPrecip" data-tip="Pluie" aria-label="Pluie" aria-expanded="false"><svg class="i"><use href="#i-rain"/></svg></button>
-    <button class="dk" type="button" id="dkDrops" data-tip="Gouttes sur le texte" aria-label="Gouttes sur le texte" aria-pressed="true"><svg class="i"><use href="#i-drop"/></svg></button>
     <span class="dk-sep"></span>
     <button class="dk" type="button" id="dkSound" data-pop="popSound" data-tip="Son" aria-label="Son" aria-expanded="false"><svg class="i"><use href="#i-mute"/></svg></button>
-    <button class="dk" type="button" id="dkVeil" data-pop="popVeil" data-tip="Voile" aria-label="Voile" aria-expanded="false"><svg class="i"><use href="#i-shade"/></svg></button>
     <span class="dk-sep"></span>
     <button class="dk" type="button" id="dkNotes" data-pop="popNotes" data-tip="Surlignages et notes" aria-label="Surlignages et notes" aria-expanded="false"><svg class="i"><use href="#i-pen"/></svg></button>
     <button class="dk" type="button" id="ambSettings" data-tip="Réglages" aria-label="Réglages"><svg class="i"><use href="#i-sliders"/></svg></button>
@@ -1418,49 +1520,29 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
   <div class="pop glass" id="popInt" hidden role="dialog" aria-label="Support du texte">
     <div class="pop-h">Support du texte</div>
     <div class="thumbs" id="sups" role="radiogroup" aria-label="Support du texte"></div>
+    <div class="wx-ev sup-opts" id="supParams" hidden>
+      <div class="wx-row" id="spColRow"><span class="wx-lbl">Couleurs</span><div class="sup-cols"><div class="chips" id="spNat" role="radiogroup" aria-label="Couleurs du support"></div><div class="swatches sm" id="spCols" role="radiogroup" aria-label="Couleurs au choix"></div></div></div>
+      <div class="wx-row" id="spPickRow"><span class="wx-lbl"></span><div class="pickers"><label class="pick"><input type="color" id="spBg"> Fond</label><label class="pick"><input type="color" id="spFg"> Texte</label></div></div>
+      <div class="row" id="spVeilRow"><label for="spVeil" id="spVeilLbl">Fond</label><output></output><input type="range" id="spVeil" min="0" max="1" step="0.01" data-ticks="5"></div>
+      <label class="switch-row" id="spFrostRow"><span>Flou derrière le texte</span><input type="checkbox" class="switch" id="spFrost"></label>
+    </div>
     <div class="wx-ev bub-opts" id="bubOpts" hidden>
       <div class="wx-row"><span class="wx-lbl">Fond</span><div class="chips" id="bubBgPick" role="radiogroup" aria-label="Fond de la bulle"></div></div>
-      <div class="wx-row" id="bubColRow" hidden><span class="wx-lbl">Couleur</span><input type="color" id="bubCol" aria-label="Couleur de la bulle"></div>
       <div class="row" id="bubVeilRow"><label for="bubVeil">Densité du fond</label><output></output><input type="range" id="bubVeil" min="0" max="2" step="0.05" data-ticks="5"></div>
       <div class="wx-row"><span class="wx-lbl">Bord</span><div class="chips" id="bubEdgePick" role="radiogroup" aria-label="Bord de la bulle"></div></div>
+      <div class="wx-row bub-pt" hidden><span class="wx-lbl">Halo</span><div class="chips" id="bubTintAuto" role="radiogroup" aria-label="Couleur du halo"></div></div>
       <div class="row bub-pt" hidden><label for="bubSpark">Étincelles</label><output></output><input type="range" id="bubSpark" min="0" max="1" step="0.05" data-ticks="5"></div>
-      <div class="row bub-pt" hidden><label for="bubFray">Effilochage</label><output></output><input type="range" id="bubFray" min="0" max="1" step="0.05" data-ticks="5"></div>
-      <div class="wx-row bub-pt" hidden><span class="wx-lbl">Halo</span><div class="chips" id="bubTintAuto" role="radiogroup" aria-label="Couleur du halo, d’elle-même"></div></div>
-      <div class="wx-row bub-pt" hidden><span class="wx-lbl"></span><div class="bub-tints" id="bubTintPick" role="radiogroup" aria-label="Couleur du halo"></div><input type="color" id="bubTint" aria-label="Couleur du halo, au choix" title="Une autre couleur"></div>
-      <div class="bub-h">Forme</div>
-      <div class="row"><label for="bubRound">Forme</label><output></output><input type="range" id="bubRound" min="2" max="6" step="0.1" data-ticks="5"></div>
-      <div class="row"><label for="bubW">Largeur</label><output></output><input type="range" id="bubW" min="24" max="80" step="1" data-ticks="5"></div>
-      <div class="row"><label for="bubH">Hauteur</label><output></output><input type="range" id="bubH" min="0.15" max="0.98" step="0.01" data-ticks="5"></div>
-      <div class="row"><label for="bubFloat">Flottement</label><output></output><input type="range" id="bubFloat" min="0" max="1" step="0.05" data-ticks="5"></div>
-      <div class="bub-h">Flou</div>
-      <div class="row"><label for="bubBlur">Intensité au centre</label><output></output><input type="range" id="bubBlur" min="0" max="1.5" step="0.02" data-ticks="5"></div>
-      <div class="row"><label for="bubStart">Début du flou</label><output></output><input type="range" id="bubStart" min="0.4" max="1.6" step="0.01" data-ticks="5"></div>
-      <div class="row"><label for="bubEnd">Flou plein à</label><output></output><input type="range" id="bubEnd" min="0" max="1.2" step="0.01" data-ticks="5"></div>
-      <div class="row"><label for="bubEase">Courbe</label><output></output><input type="range" id="bubEase" min="0.3" max="3" step="0.05" data-ticks="5"></div>
-      <div class="row"><label for="bubHalo">Halo extérieur</label><output></output><input type="range" id="bubHalo" min="0" max="1" step="0.01" data-ticks="5"></div>
-      <div class="bub-h">Ondulation</div>
-      <div class="row"><label for="bubAmp">Amplitude des bords</label><output></output><input type="range" id="bubAmp" min="0" max="0.3" step="0.005" data-ticks="5"></div>
-      <div class="row"><label for="bubLobes">Ondulations</label><output></output><input type="range" id="bubLobes" min="2" max="9" step="1" data-ticks="5"></div>
-      <div class="row"><label for="bubIrr">Irrégularité</label><output></output><input type="range" id="bubIrr" min="0" max="1" step="0.05" data-ticks="5"></div>
-      <div class="row"><label for="bubSpeed">Vitesse</label><output></output><input type="range" id="bubSpeed" min="0" max="3" step="0.05" data-ticks="5"></div>
-      <div class="row"><label for="bubImg">Déformation de l’image</label><output></output><input type="range" id="bubImg" min="0" max="1" step="0.05" data-ticks="5"></div>
-      <div class="row"><label for="bubIscale">Échelle de la déformation</label><output></output><input type="range" id="bubIscale" min="0.25" max="3" step="0.05" data-ticks="5"></div>
-      <div class="bub-h">Fondu</div>
-      <div class="row"><label for="bubFade">Fondu du bord</label><output></output><input type="range" id="bubFade" min="0.01" max="0.5" step="0.01" data-ticks="5"></div>
-      <div class="row"><label for="bubOp">Opacité</label><output></output><input type="range" id="bubOp" min="0" max="1" step="0.01" data-ticks="5"></div>
-      <div class="row"><label for="bubHold">Tenue de la lumière</label><output></output><input type="range" id="bubHold" min="0" max="1" step="0.05" data-ticks="5"></div>
-      <div class="row"><label for="bubRim">Liseré</label><output></output><input type="range" id="bubRim" min="0" max="1" step="0.05" data-ticks="5"></div>
-      <div class="bub-foot"><p class="hint">La bulle se déplace par sa barre. Son coin, tiré de côté, grossit le texte ; vers le bas, il agrandit la bulle.</p><button class="btn sm" type="button" id="bubReset">Par défaut</button></div>
+      <div class="row"><label for="bubBlur">Flou</label><output></output><input type="range" id="bubBlur" min="0" max="1.5" step="0.02" data-ticks="5"></div>
+      <div class="row"><label for="bubAmp">Ondulation</label><output></output><input type="range" id="bubAmp" min="0" max="0.3" step="0.005" data-ticks="5"></div>
+      <div class="row"><label for="bubSpeed">Mouvement</label><output></output><input type="range" id="bubSpeed" min="0" max="3" step="0.05" data-ticks="5"></div>
+      <div class="bub-foot"><span></span><button class="btn sm" type="button" id="bubReset">Par défaut</button></div>
     </div>
+    <p class="hint sup-hint" id="supHint"></p>
   </div>
   <div class="pop glass narrow" id="popPrecip" hidden role="dialog" aria-label="Pluie">
     <div class="pop-h"><span id="precipLbl">Pluie</span><output id="precipOut"></output></div>
     <input type="range" id="precipAmt" min="0" max="100" step="1" data-vertical data-ticks="5">
-  </div>
-  <div class="pop glass narrow" id="popVeil" hidden role="dialog" aria-label="Voile">
-    <div class="pop-h"><span id="veilLbl">Voile</span><output id="veilOut"></output></div>
-    <input type="range" id="veil" min="0" max="1" step="0.01" data-vertical data-ticks="5">
-    <label class="switch-row" id="frostRow" aria-label="Verre dépoli : la scène se floute derrière la feuille"><span>Flou</span><input type="checkbox" class="switch" id="frost"></label>
+    <label class="switch-row" id="dropsRow" aria-label="Gouttes sur le texte"><span>Gouttes</span><input type="checkbox" class="switch" id="dropsOn"></label>
   </div>
   <div class="pop glass" id="popSound" hidden role="dialog" aria-label="Son">
     <label class="switch-row"><span class="pop-h">Son</span><input type="checkbox" class="switch" id="soundOn"></label>
@@ -1515,8 +1597,33 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
     c.lineTo(xl + r, by(xl)); c.arcTo(xl, by(xl), xl, by(xl) - r, r); c.lineTo(xl, ty(xl) + r); c.arcTo(xl, ty(xl), xl + r, ty(xl), r);
     c.closePath();
   }
+  // Book cloth, for the bound book: a fine plain weave, each thread a little uneven (slubs), drawn at the canvas's own
+  // density so that it stays crisp on a sharp screen (the open book's looser linen, scaled up, read as brushed paint).
+  // A small seamless tile, made once per density.
+  const folioCloths = {};
+  function folioCloth(d) {
+    const q = d > 1.5 ? 2 : 1;
+    if (folioCloths[q]) return folioCloths[q];
+    const n = 64 * q, cv = document.createElement('canvas'); cv.width = cv.height = n;
+    const g = cv.getContext('2d'), id = g.createImageData(n, n), D = id.data;
+    let s = 23; const r = () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296;
+    // each thread (a row for the weft, a column for the warp) has its tone, swelling and thinning along its length
+    const thread = () => { const t = (r() - 0.5) * 0.9, a = r() * 6.283, b = r() * 6.283, k1 = 1 + (r() * 3 | 0), k2 = 2 + (r() * 4 | 0); return (p) => t + 0.35 * Math.sin(a + p * k1 * 6.283) + 0.25 * Math.sin(b + p * k2 * 6.283); };
+    const T = 1.25 * q, cells = Math.round(n / T), cw = n / cells; // a thread every 1.25 points, a whole number of them in the tile
+    const weft = Array.from({ length: cells }, thread), warp = Array.from({ length: cells }, thread);
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const i = Math.min(cells - 1, (x / cw) | 0), j = Math.min(cells - 1, (y / cw) | 0), fx = x / cw - i, fy = y / cw - j;
+      const over = (i + j) & 1; // over and under, a cell at a time
+      const v = over ? weft[j](x / n) : warp[i](y / n), edge = over ? Math.abs(fy - 0.5) : Math.abs(fx - 0.5); // the thread rounds off at its sides
+      const l = v * 0.42 - edge * edge * 1.1, o = (y * n + x) * 4;
+      if (l >= 0) { D[o] = 255; D[o + 1] = 236; D[o + 2] = 214; D[o + 3] = Math.min(255, l * 60); } else { D[o + 3] = Math.min(255, -l * 70); }
+    }
+    g.putImageData(id, 0, 0);
+    return (folioCloths[q] = { cv, q });
+  }
   // The board's material on any canvas (the cover that opens is painted with it too): colour, mottling, cloth or leather.
-  function boards(c, V, x, y, w, h, R, mini) {
+  // moving: the cover that swings open keeps the loose linen alone (a fine weave, turned in 3D, would shimmer).
+  function boards(c, V, x, y, w, h, R, mini, moving) {
     const gb = c.createLinearGradient(x, y, x + w, y + h);
     gb.addColorStop(0, V.cover[0]); gb.addColorStop(0.5, V.cover[1]); gb.addColorStop(1, V.cover[2]);
     c.fillStyle = gb; c.fillRect(x, y, w, h);
@@ -1526,7 +1633,42 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
       const bx = x + R() * w, by = y + R() * h, br = u * (0.05 + R() * 0.12), dark = R() < 0.55;
       c.fillStyle = rad(c, bx, by, br, [[0, dark ? 'rgba(0,0,0,.09)' : 'rgba(255,220,170,.06)'], [1, 'rgba(0,0,0,0)']]); c.fillRect(bx - br, by - br, br * 2, br * 2);
     }
-    c.save(); c.globalAlpha = V.texA; c.fillStyle = c.createPattern(K.bookTile(V.tex), 'repeat'); c.fillRect(x, y, w, h); c.restore();
+    c.save();
+    if (V.tex === 'linen' && !moving) { // the weave, one texel to a device pixel
+      const t = folioCloth((c.getTransform ? c.getTransform().a : 1) || 1), p = c.createPattern(t.cv, 'repeat');
+      if (p.setTransform) p.setTransform(new DOMMatrix().scale(1 / t.q));
+      c.globalAlpha = 0.8; c.fillStyle = p; c.fillRect(x, y, w, h);
+      c.globalAlpha = V.texA * 0.35; c.fillStyle = c.createPattern(K.bookTile(V.tex), 'repeat'); c.fillRect(x, y, w, h); // and a trace of the loose linen's irregularity
+    } else { c.globalAlpha = V.texA; c.fillStyle = c.createPattern(K.bookTile(V.tex), 'repeat'); c.fillRect(x, y, w, h); }
+    c.restore();
+  }
+  // The light the scene puts on the book (o.day, o.tint: the sky's daylight 0..1 and tint, given by the reader; none in the
+  // previews). By full day the colours stay as they are, only touched by the sky's tint (cooler under rain, golden at the
+  // golden hour); toward night the reading lamp takes over: warmer, lower on the boards, the paper only a little warmer, so
+  // that the book sits in the dark scene instead of keeping its daylight. n: how much it is night (0..1).
+  const folioSm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  const folioHex = (h) => (h[0] === '#' ? [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) : h.match(/[\d.]+/g).slice(0, 3).map(Number)); // '#rrggbb' or 'rgba(…)'
+  const folioCss = (a) => '#' + a.map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+  function folioLit(V, o) {
+    if (!o || o.mini || o.day == null) return Object.assign({}, V, { n: 0 });
+    const n = 1 - folioSm(0.12, 0.85, o.day), t = o.tint ? String(o.tint).split(',').map(Number) : [255, 255, 255];
+    const lamp = [1, 0.92, 0.82], m = [0, 1, 2].map((i) => ((1 - n) * Math.pow(t[i] / 255, 0.3) + n * lamp[i]) * (1 - 0.3 * n));
+    const tone = (h, k) => folioCss(folioHex(h).map((v, i) => v * (1 - k + k * m[i])));
+    const trip = (s, k) => s.split(',').map((v, i) => Math.round(+v * (1 - k + k * m[i]))).join(',');
+    const pm = [0, 1, 2].map((i) => 1 - 0.035 * n - 0.3 * n * (1 - lamp[i]) - 0.08 * (1 - n) * (1 - Math.pow(t[i] / 255, 0.3)));
+    return Object.assign({}, V, {
+      n, cover: V.cover.map((h) => tone(h, 1)), edge: tone(V.edge, 0.8), rib: V.rib.map((h) => tone(h, 1)), gilt: V.gilt && trip(V.gilt, 1),
+      // the paper keeps the reader's own colour; else, at night, it warms and dims a few percent (the ink keeps its contrast)
+      paper: o.bg || V.dark ? V.paper : folioCss(folioHex(V.paper).map((v, i) => v * pm[i])),
+    });
+  }
+  // The endpaper (the left page while the book is open on its title or its end): another stock than the text paper, a
+  // shade deeper and a breath toward the binding's colour, smooth (much darker or tinted, it read as a soiled page or a
+  // salmon one).
+  function folioEndp(paper, board) {
+    const P = folioHex(paper), B = folioHex(board), lum = (a) => 0.2126 * a[0] + 0.7152 * a[1] + 0.0722 * a[2];
+    const E = P.map((v, i) => v * 0.95 + B[i] * 0.05), k = lum(P) * 0.965 / Math.max(1, lum(E));
+    return folioCss(E.map((v) => v * k));
   }
   // A few grey lines standing for text, for the preview.
   function lines(c, x, y, w, h, ink, a) {
@@ -1543,9 +1685,9 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
     dims,
     edge: (u) => { const d = dims(u); return { t: d.wt + d.cv, r: d.T + d.cv, b: d.wt + d.cv, l: d.T + d.cv }; },
     variant: (k, bg, fg) => K.bookTone(K.bookVariants[k] || K.bookVariants.base, bg, fg),
-    boards, stack,
+    boards, stack, lit: folioLit, endp: folioEndp,
     draw(c, S, W, H, o) {
-      const V = K.bookTone(K.bookVariants[o.scene] || K.bookVariants.base, o.bg, o.fg), u = o.u, mini = !!o.mini, R = o.R, L = o.left, two = !!L;
+      const V = folioLit(K.bookTone(K.bookVariants[o.scene] || K.bookVariants.base, o.bg, o.fg), o), u = o.u, mini = !!o.mini, R = o.R, L = o.left, two = !!L;
       const k = (c.getTransform ? c.getTransform().a : 1) || 1, D = dims(u, mini), p = Math.max(0, Math.min(1, o.progress == null ? 0.35 : o.progress));
       const x0 = two ? L.x : S.x, x1 = S.x + S.w, y0 = S.y, y1 = S.y + S.h, gx = S.x;
       // the stacks share the block's thickness: what has been read lies on the left
@@ -1558,6 +1700,9 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
       const un = o.under, lum = un ? 0.2126 * un[0] + 0.7152 * un[1] + 0.0722 * un[2] : 0.5;
       const shc = un ? `${un[0] * 30 | 0},${un[1] * 26 | 0},${un[2] * 22 | 0}` : '16,11,8', sa = 0.3 + 0.34 * (1 - Math.min(1, lum * 1.15));
       const cover = () => { c.beginPath(); K.bookPath(c, bx0, by0, bx1 - bx0, by1 - by0, cr); };
+      // at night the reading lamp makes a pool of light: the boards and the edges fall into shade toward the far corners
+      const pool = V.n > 0.02 ? rad(c, two ? gx : (x0 + x1) / 2, (y0 + y1) / 2, Math.hypot(bx1 - bx0, by1 - by0) * 0.56,
+        [[0.38, 'rgba(12,7,3,0)'], [0.7, `rgba(12,7,3,${(0.1 * V.n).toFixed(3)})`], [1, `rgba(12,7,3,${(0.3 * V.n).toFixed(3)})`]]) : null;
 
       // 1. the shadow on the surface behind: wide and soft, then tighter, then a contact line
       c.save(); c.fillStyle = V.cover[2];
@@ -1569,6 +1714,7 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
       // 2. the boards, their sheen, the hinge at the spine (or the rolled spine), a bevel and a gilt hairline
       c.save(); cover(); c.clip();
       boards(c, V, bx0, by0, bx1 - bx0, by1 - by0, R, mini);
+      if (pool) { c.fillStyle = pool; c.fillRect(bx0, by0, bx1 - bx0, by1 - by0); }
       light(c, lx, ly, Math.max(u * 0.9, lt ? lt.r * 0.6 : 0), lrgb, la * (lt ? 0.26 : 0.9));
       if (two) {
         const hw = Math.max(3, u * 0.008) * (mini ? 0.6 : 1), hg = c.createLinearGradient(gx - hw, 0, gx + hw, 0);
@@ -1595,18 +1741,47 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
       stack(c, x0, y0, x1, y1, gx, ol, or, D.wt, dip, gw); c.fill(); c.restore();
       c.save(); stack(c, x0, y0, x1, y1, gx, ol, or, D.wt, dip, gw); c.clip();
       c.fillStyle = V.edge; c.fillRect(x0 - ol - 2, y0 - D.wt - 2, x1 - x0 + ol + or + 4, y1 - y0 + D.wt * 2 + 4);
-      const n = Math.max(3, Math.round(D.T / (mini ? 0.6 : 1.3)));
-      c.lineWidth = mini ? 0.35 : 0.6;
+      // leaves are not evenly cut: each line is set a little off its place and its tone varies, and every few leaves a
+      // darker line marks where one gathering meets the next (a seeded stream: the same edges at every painting)
+      const n = Math.max(3, Math.round(D.T / (mini ? 0.6 : 1.1))), hi = V.dark ? 0.12 : 0.36 * (1 - 0.35 * V.n);
+      let sd = 7, gath = 0; const rr = () => (sd = (Math.imul(sd, 1664525) + 1013904223) >>> 0) / 4294967296;
+      c.lineWidth = mini ? 0.35 : 0.5;
       for (let j = 1; j <= n; j++) {
-        stack(c, x0, y0, x1, y1, gx, ol * j / n, or * j / n, D.wt * j / n, dip, gw);
-        c.strokeStyle = j % 2 ? `rgba(${V.sh},.28)` : `rgba(255,251,238,${V.dark ? 0.12 : 0.4})`; if (j === n) c.strokeStyle = `rgba(${V.sh},.5)`; c.stroke();
+        const f = j < n ? Math.min(1, (j + (rr() - 0.5) * 0.7) / n) : 1;
+        stack(c, x0, y0, x1, y1, gx, ol * f, or * f, D.wt * f, dip, gw);
+        if (j === n) c.strokeStyle = `rgba(${V.sh},.5)`;
+        else if (++gath >= 5 + (rr() * 4 | 0)) { gath = 0; c.strokeStyle = `rgba(${V.sh},${(0.3 + rr() * 0.12).toFixed(2)})`; }
+        else c.strokeStyle = j % 2 ? `rgba(${V.sh},${(0.1 + rr() * 0.14).toFixed(2)})` : `rgba(255,251,238,${(hi * (0.6 + rr() * 0.5)).toFixed(3)})`;
+        c.stroke();
       }
       const eg = c.createLinearGradient(x0 - ol, y0, x1 + or, y1);
-      eg.addColorStop(0, 'rgba(255,240,210,.14)'); eg.addColorStop(1, `rgba(${V.sh},.22)`);
+      eg.addColorStop(0, `rgba(255,240,210,${(0.14 * (1 - 0.5 * V.n)).toFixed(3)})`); eg.addColorStop(1, `rgba(${V.sh},.22)`);
       c.fillStyle = eg; c.fillRect(x0 - ol - 2, y0 - D.wt - 2, x1 - x0 + ol + or + 4, y1 - y0 + D.wt * 2 + 4);
+      if (pool) { c.fillStyle = pool; c.fillRect(x0 - ol - 2, y0 - D.wt - 2, x1 - x0 + ol + or + 4, y1 - y0 + D.wt * 2 + 4); }
       // the top sheets shade the edges below them
       c.fillStyle = V.paper; c.shadowColor = `rgba(${V.sh},.7)`; c.shadowBlur = (mini ? 1 : 4.5) * k; c.shadowOffsetX = sx * 0.12 * k; c.shadowOffsetY = sy * 0.2 * k;
       c.fillRect(x0, y0, x1 - x0, y1 - y0); c.restore();
+
+      // 3b. the headbands: at the head and the tail of the spine, in the dip of the edges, a bead of silk wound in two
+      // colours (the ribbon's and the paper's), round under the light, with a hair of shadow on the edges beside it
+      if (two && !mini && D.wt > 4) {
+        const hw = Math.min(gw * 0.5, D.T * 0.42), hh = Math.max(2.5, D.wt * 0.58), sw = Math.max(0.9, hh * 0.2), ycs = [y0 - D.wt * 0.5 - hh * 0.3, y1 + D.wt * 0.5 + hh * 0.3];
+        const cream = folioCss(folioHex(V.edge).map((v, i) => v * 0.8 + folioHex(V.rib[1])[i] * 0.2)); // the paler silk, toned to the ribbon
+        for (const yc of ycs) {
+          const yt = yc - hh / 2;
+          c.save(); c.beginPath(); c.ellipse(gx, yc, hw, hh / 2, 0, 0, TAU);
+          c.shadowColor = 'rgba(8,4,2,.4)'; c.shadowBlur = 1.5 * k; c.shadowOffsetX = sx * 0.08 * k; c.shadowOffsetY = sy * 0.1 * k;
+          c.fillStyle = V.rib[1]; c.fill(); c.shadowColor = 'transparent'; c.clip();
+          c.fillStyle = cream; for (let x = gx - hw, i = 0; x < gx + hw; x += sw, i++) if (i % 2) c.fillRect(x, yt, sw * 0.8, hh);
+          const cg = c.createLinearGradient(0, yt, 0, yt + hh); // the bead turns from the light to the shade
+          cg.addColorStop(0, 'rgba(0,0,0,.2)'); cg.addColorStop(0.32, 'rgba(255,244,226,.22)'); cg.addColorStop(0.56, 'rgba(255,244,226,0)'); cg.addColorStop(1, 'rgba(0,0,0,.5)');
+          c.fillStyle = cg; c.fillRect(gx - hw, yt, hw * 2, hh);
+          const eg2 = c.createLinearGradient(gx - hw, 0, gx + hw, 0); // and its two ends sink under the pages, into the gutter's shade
+          eg2.addColorStop(0, 'rgba(0,0,0,.6)'); eg2.addColorStop(0.32, 'rgba(0,0,0,0)'); eg2.addColorStop(0.68, 'rgba(0,0,0,0)'); eg2.addColorStop(1, 'rgba(0,0,0,.6)');
+          c.fillStyle = eg2; c.fillRect(gx - hw, yt, hw * 2, hh);
+          c.restore();
+        }
+      }
 
       // 4. the paper (the DOM pages lie on it; the preview shows it with its fold, its lines and a page lifting)
       c.fillStyle = V.paper; c.fillRect(x0, y0, x1 - x0, y1 - y0);
@@ -1697,6 +1872,7 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
     serif: { label: 'Classique, à empattements', css: '"Source Serif 4", Georgia, "Times New Roman", serif' },
     sans: { label: 'Moderne, sans empattement', css: '"Hanken Grotesk", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif' },
     literata: { label: 'Literata', css: '"Literata", Georgia, "Times New Roman", serif' },
+    newsreader: { label: 'Newsreader', css: '"Newsreader", Georgia, "Times New Roman", serif' },
     atkinson: { label: 'Atkinson Hyperlegible', css: '"Atkinson Hyperlegible", "Segoe UI", Verdana, sans-serif' },
     georgia: { label: 'Georgia', css: 'Georgia, "Times New Roman", serif' },
     perso: { label: 'Ma police importée', css: '"Liseuse Perso", Georgia, serif' },
@@ -1711,12 +1887,12 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
     { name: 'Encre', bg: '#0e0f11', fg: '#b6b0a6' },
   ];
   const DEF = {
-    bg: '#f4efe6', fg: '#2a2622', font: 'serif', size: 20, lh: 1.65, ws: 0.04, ls: 0, measure: 62, justify: true, kw: true, kwi: 50,
+    bg: '#f4efe6', fg: '#2a2622', font: 'serif', size: 22, lh: 1.65, ws: 0.04, ls: 0.005, measure: 77, justify: true, kw: true, kwi: 50,
     scene: 'nook', precip: {}, drops: !reduceMotion, integrate: true, sound: false, soundPick: 'auto', vol: 60, veil: 0.9, shade: 0.9, sheet: 1, frost: true, support: {}, weather: {}, sky: {}, clock: null, evolve: 'fixed', pace: 'calm',
   };
   // What is read from disk can be anything (an older version, a hand edit, a write cut short): each value of the reading
   // panel is checked and snapped to its slider, else the default is taken. A broken value never reaches the page.
-  const RANGE = { size: [14, 32, 1], lh: [1.25, 2.3, 0.05], ws: [-0.05, 0.6, 0.01], ls: [-0.02, 0.12, 0.005], measure: [30, 95, 1], kwi: [0, 100, 5] };
+  const RANGE = { size: [12, 40, 1], lh: [1.25, 2.3, 0.05], ws: [-0.05, 0.6, 0.01], ls: [-0.02, 0.12, 0.005], measure: [30, 95, 1], kwi: [0, 100, 5] };
   function tidyReading(o) {
     const s = o && typeof o === 'object' && !Array.isArray(o) ? o : Object.assign({}, DEF);
     s.font = FONT_OLD[s.font] || s.font;
@@ -1889,9 +2065,10 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
   // and the rest stay. What was there is kept for « Annuler ».
   const READING = ['bg', 'fg', 'font', 'size', 'lh', 'ws', 'ls', 'measure', 'justify', 'kw', 'kwi'];
   $('reset').addEventListener('click', () => {
-    const before = Object.fromEntries(READING.map((k) => [k, S[k]]));
-    if (READING.every((k) => S[k] === DEF[k])) { toast("Les réglages de lecture sont déjà aux valeurs d’origine."); return; }
-    for (const k of READING) S[k] = DEF[k];
+    const keys = amb.on ? READING.filter((k) => k !== 'bg' && k !== 'fg') : READING; // (in the ambiance the colours are the supports')
+    const before = Object.fromEntries(keys.map((k) => [k, S[k]]));
+    if (keys.every((k) => S[k] === DEF[k])) { toast("Les réglages de lecture sont déjà aux valeurs d’origine."); return; }
+    for (const k of keys) S[k] = DEF[k];
     apply(); save();
     toast("Réglages de lecture rétablis.", () => {
       if (!persoReady && before.font === 'perso') before.font = DEF.font;
@@ -2422,7 +2599,7 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
     if (amb.on && body.contains('int-page')) { const p = hex(getComputedStyle(root).getPropertyValue('--paper')); if (p) return [p, false]; }
     // the supports with a page (the open book, the easel, the frame): their paper, or the reading background they follow
     if (amb.on && amb.sup && amb.sup !== 'bubble' && amb.sup !== 'screen') {
-      if (followCols()) return [S.bg, false];
+      const c = supCol(amb.sup); if (c) return [c.bg, false];
       const V = SUPPORTS.book.kit.bookVariants;
       return [amb.sup === 'book' ? (V[amb.key] || V.base).paper : '#efe6d2', false];
     }
@@ -2860,7 +3037,9 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
     if (!['fast', 'calm', 'slow', 'clock'].includes(S.pace)) S.pace = DEF.pace;
     for (const k of ['support', 'weather', 'sky', 'place', 'precip']) if (!isObj(S[k])) S[k] = {};
     for (const [k, v] of Object.entries(S.precip)) if (!fin(v)) delete S.precip[k]; else S.precip[k] = Math.round(num(v, 0, 100, 0));
-    for (const [k, v] of Object.entries(S.place)) if (!(k.startsWith('*.') && isObj(v) && fin(v.x) && fin(v.y) && fin(v.s))) delete S.place[k];
+    for (const [k, v] of Object.entries(S.place)) if (!(k.startsWith('*.') && isObj(v) && fin(v.x) && fin(v.y))) delete S.place[k]; else v.s = 1; // (one size of text for every support: a scale kept per support before is dropped)
+    if (!isObj(S.supH)) S.supH = {};
+    for (const [k, v] of Object.entries(S.supH)) if (!(fin(v) && v > 0.05 && v <= 1)) delete S.supH[k];
     for (const [k, v] of Object.entries(S.sky)) if (!(SCENES[k] && isObj(v) && ['T', 'c', 'r', 's'].every((n) => fin(v[n])))) delete S.sky[k];
     for (const [k, v] of Object.entries(S.weather)) if (!(SCENES[k] && typeof v === 'string')) delete S.weather[k];
     const c = S.clock;
@@ -2928,6 +3107,45 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
     x.putImageData(id, 0, 0);
     root.style.setProperty('--grain', `url(${g.toDataURL()})`);
   } catch {}
+  // The tooth of the scene's paper (« Feuille »), made the first time a sheet shows: the soft clouding of its pulp at three
+  // scales (a value noise that wraps, so the tile repeats with no seam), in light and dark of a few percent, and a few
+  // fibres, light and dark, short and a little bent. A 256-point tile, painted once into #sheet's background.
+  function nativePaper() {
+    if (nativePaper.done) return;
+    nativePaper.done = true;
+    try {
+      const N = 256, cv = document.createElement('canvas'); cv.width = cv.height = N;
+      const x = cv.getContext('2d'), id = x.createImageData(N, N), d = id.data, R = mulberry(23);
+      const layer = (n) => {
+        const v = new Float32Array(n * n);
+        for (let i = 0; i < v.length; i++) v[i] = R() - 0.5;
+        return (px, py) => {
+          const fx = px * n / N, fy = py * n / N, ix = fx | 0, iy = fy | 0, tx = fx - ix, ty = fy - iy;
+          const sx = tx * tx * (3 - 2 * tx), sy = ty * ty * (3 - 2 * ty), x0 = ix % n, x1 = (ix + 1) % n, y0 = (iy % n) * n, y1 = ((iy + 1) % n) * n;
+          const a = v[y0 + x0] + (v[y0 + x1] - v[y0 + x0]) * sx, b = v[y1 + x0] + (v[y1 + x1] - v[y1 + x0]) * sx;
+          return a + (b - a) * sy;
+        };
+      };
+      const big = layer(8), mid = layer(22), fine = layer(64);
+      for (let py = 0, i = 0; py < N; py++) for (let px = 0; px < N; px++, i += 4) {
+        const f = big(px, py) * 0.5 + mid(px, py) * 0.32 + fine(px, py) * 0.22, lt = f > 0;
+        d[i] = lt ? 255 : 74; d[i + 1] = lt ? 251 : 50; d[i + 2] = lt ? 242 : 26; d[i + 3] = Math.min(255, Math.abs(f) * (lt ? 26 : 20)) | 0;
+      }
+      x.putImageData(id, 0, 0);
+      x.lineCap = 'round';
+      // (mostly light fibres: dark ones, past a hint, read as hairs on the glass)
+      for (let k = 0; k < 60; k++) {
+        const l = 8 + R() * 26, an = R() * Math.PI, cx = R() * N, cy = R() * N, bend = (R() - 0.5) * l * 0.6, dark = R() < 0.25;
+        const ux = Math.cos(an) * l / 2, uy = Math.sin(an) * l / 2;
+        x.strokeStyle = dark ? `rgba(110,80,46,${(0.02 + R() * 0.015).toFixed(3)})` : `rgba(255,252,244,${(0.06 + R() * 0.05).toFixed(3)})`;
+        x.lineWidth = 0.6 + R() * 0.7;
+        for (const ox of [-N, 0, N]) for (const oy of [-N, 0, N]) {
+          x.beginPath(); x.moveTo(cx - ux + ox, cy - uy + oy); x.quadraticCurveTo(cx - uy / l * 2 * bend + ox, cy + ux / l * 2 * bend + oy, cx + ux + ox, cy + uy + oy); x.stroke();
+        }
+      }
+      document.documentElement.style.setProperty('--nat-paper', `url(${cv.toDataURL()})`);
+    } catch {}
+  }
 
   /* ---------------- ambiance: animation ---------------- */
   const bgC = $('bg'), fxC = $('fx'), dropsC = $('drops'), glC = $('gl'), rainC = $('rain');
@@ -2951,8 +3169,11 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
       fxC.width = Math.round(this.W * this.fd); fxC.height = Math.round(this.H * this.fd);
       this.gd = Math.min(d, 1.5);
       glC.width = Math.round(this.W * this.gd); glC.height = Math.round(this.H * this.gd);
+      // paint() lays the overlays out already (integrate calls layout): a second layout would paint the support and read
+      // the scene back from the GPU once more, for the same result. Only when the painting did not get that far.
+      const laid = this.laid;
       this.paint();
-      this.layout();
+      if (this.laid === laid) this.layout();
     },
     // The scene is painted once per resize or scene change; only the fx canvas moves afterwards.
     paint() {
@@ -3032,9 +3253,14 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
         const lk = this.D ? this.D.W.lamp : 1;
         $('pageLight').className = p.light + (p.flicker && lk >= 0.9 ? ' flicker' : '');
         root.style.setProperty('--lampk', lk);
+        $('sheet').classList.toggle('nat-bottom', p.light === 'bottom');
+        nativePaper();
+        this.natNow = true; // (a new scene, support or size: the lamp's light is in place at once, it does not glide there)
       }
       if (this.on) this.layout(); else this.sheet();
-      inkTone(true);
+      // The ink is read once the frame that shows the change is drawn: the style is up to date by then and the read costs
+      // nothing. Read at once, it made the browser work out the style of the whole page inside the gesture, a second time.
+      cancelAnimationFrame(this.inkRaf); this.inkRaf = requestAnimationFrame(() => setTimeout(() => inkTone(true)));
     },
     // Under the text: the scene's paper or the reading colour, as opaque as asked, frosted when the scene shows through.
     // When too little of it is left for the ink to read well (contrast under 4.5:1), the ink turns light or dark by itself.
@@ -3044,6 +3270,7 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
       st.setProperty('--shade', S.shade);
       cl.remove('auto-ink', 'light', 'dark');
       if (!this.on || mode === 'air' || mode === 'flat' || mode === 'sup') return;
+      if (mode === 'page') this.nativeLight();
       if (auto) { cl.add('ink-fade'); clearTimeout(this.inkT); this.inkT = setTimeout(() => cl.remove('ink-fade'), 1600); }
       const page = mode === 'page', a = page ? S.sheet : S.veil, bg = page ? this.sc.paper.bg : S.bg, ink = page ? this.sc.paper.ink : S.fg;
       st.setProperty('--sheet-bg', bg); st.setProperty('--sheet-a', a);
@@ -3057,17 +3284,32 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
       st.setProperty('--auto-ink', light ? '#f3ede4' : '#1b1510');
       column.classList.add('auto-ink', light ? 'light' : 'dark');
     },
+    // « Feuille »: where the lamp's light falls on the sheet. The scene's first glow is its main lamp (the one the supports
+    // take their light from): its height and its colour; without one, or with its lamp off (by day), the middle of the
+    // window and the white of daylight. Two custom properties on the sheet and its light (set only when they change:
+    // nothing else restyles).
+    nativeLight() {
+      let g = null;
+      try { g = ((this.sc.glows && this.sc.glows(this.W, this.H, this.A)) || [])[0] || null; } catch { g = null; }
+      if (g && !(+g.a >= 0.08)) g = null;
+      const y = g && isFinite(g.y) ? Math.round(Math.max(0, Math.min(this.H, g.y))) + 'px' : '45%', c = `rgb(${g && /^\d+,\s*\d+,\s*\d+$/.test(g.rgb) ? g.rgb : '255,246,228'})`;
+      const now = this.natNow;
+      this.natNow = false;
+      if (this.natL === y + c) return;
+      this.natL = y + c;
+      for (const el of [$('sheet'), $('pageLight')]) {
+        el.style.setProperty('--nat-ly', y); el.style.setProperty('--nat-lc', c);
+        if (now) { el.style.transition = 'none'; void getComputedStyle(el).getPropertyValue('--nat-ly'); el.style.transition = ''; }
+      }
+    },
     // Average colour of the scene under the column (the reading colour for abstract fields, which are drawn from it).
     sampleUnder() {
       this.under = null;
       if (!this.sc || !this.col) return;
       if (this.sc.abstract) { this.under = hexRGB(S.bg); return; }
       try {
-        const n = 24, t = document.createElement('canvas'); t.width = t.height = n;
-        const x = t.getContext('2d', { willReadFrequently: true }), k = bgC.width / this.W;
-        x.imageSmoothingQuality = 'high';
-        x.drawImage(bgC, this.col.x * k, 0, Math.max(1, this.col.w * k), bgC.height, 0, 0, n, n);
-        const d = x.getImageData(0, 0, n, n).data, m = [0, 0, 0];
+        const n = 24, k = bgC.width / this.W;
+        const d = readBack([[bgC, this.col.x * k, 0, Math.max(1, this.col.w * k), bgC.height]], n, n), m = [0, 0, 0];
         for (let i = 0; i < d.length; i += 4) { m[0] += d[i]; m[1] += d[i + 1]; m[2] += d[i + 2]; }
         this.under = m.map((v) => v / 255 / (n * n));
       } catch { this.under = null; }
@@ -3090,7 +3332,7 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
     },
     // Supports: room for the object around the text (the book opens on two pages when both fit), then the object, painted once.
     placeSupport() {
-      const sp = SUPPORTS[this.sup], u = Math.min(this.W, this.H), b = sp.box(this.W, this.H, u, sp.fit ? supFitEnv() : undefined), st = root.style, g = b.gutter || 0;
+      const sp = SUPPORTS[this.sup], u = Math.min(this.W, this.H), b = supHeight(sp, sp.box(this.W, this.H, u, sp.fit ? supFitEnv() : undefined), u), st = root.style, g = b.gutter || 0;
       st.setProperty('--sup-top', Math.round(b.top) + 'px'); st.setProperty('--sup-bottom', Math.round(b.bottom) + 'px');
       st.setProperty('--sup-side', Math.round(b.side) + 'px'); st.setProperty('--gutter', Math.round(g) + 'px');
       // Two pages only while the book leaves some of the scene around it (84 % of the width at most): the pages may
@@ -3153,6 +3395,7 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
     // Overlays that follow the reading column.
     layout() {
       if (!this.on) return;
+      this.laid = (this.laid || 0) + 1; // (resize knows by it that paint laid the overlays out)
       if (this.sup) this.placeSupport();
       const r = textRect(), x = Math.max(0, r.left), w = Math.min(innerWidth, r.right) - x, f = 250; // the shade eases in over 280 px, the last 30 under the column's margin
       Object.assign($('pageLight').style, { left: x + 'px', width: w + 'px' });
@@ -3263,7 +3506,7 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
     // A few drops on the glass in front of the text: they rest, then slide slowly and leave a wet trail.
     dropStep(dt) {
       const C = this.col, X = dropX;
-      if (!C) return;
+      if (!C || bookIsAway()) return;
       const rainy = S.drops && this.P && this.P.vis > 0 && !this.P.snow;
       if (!rainy && !this.drops.length && !this.beads.length) {
         if (this.dropsDirty) { X.clearRect(0, 0, C.w, C.h); this.dropsDirty = false; this.dB = null; this.trT = 0; }
@@ -3553,13 +3796,14 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
   addEventListener('keydown', (e) => { if (amb.on && e.target.closest && e.target.closest('.dock-wrap, .sup-bar')) wake(); });
   async function enterAmb() {
     if (amb.on) return;
-    amb.on = true;
+    amb.on = true; clearTimeout(amb.warmPurge); amb.warmSig = ''; amb.warmA = null; // (the caches painted ahead are in use now; after this opening, the next approach paints ahead again)
     document.body.classList.add('amb');
     drawer('toc', false);
     amb.resize();
+    document.body.classList.remove('dock-in');
+    requestAnimationFrame(() => requestAnimationFrame(() => { if (amb.on) document.body.classList.add('dock-in'); }));
     if (S.sound) sound.start();
     evolve.start();
-    clearInterval(dockT); dockT = setInterval(dockTone, 3000);
     wake();
     reader.focus({ preventScroll: true });
     try { if (!document.fullscreenElement && root.requestFullscreen) { await root.requestFullscreen(); wentFullscreen = true; } } catch { wentFullscreen = false; }
@@ -3571,8 +3815,9 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
   function exitAmb() {
     if (!amb.on) return;
     closePop(true);
+    bookAway(false, true);
     amb.on = false;
-    document.body.classList.remove('amb', 'idle', 'int-page', 'int-air', 'int-flat');
+    document.body.classList.remove('amb', 'idle', 'int-page', 'int-air', 'int-flat', 'dock-in');
     supChosen(null);
     bubUI.sync();
     evolve.stop(); amb.clearOld(); clearInterval(dockT);
@@ -3732,20 +3977,28 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
       const sig = S.bg + S.fg + (userImg ? userImg.src : '');
       if (sig !== thumbSig) { thumbSig = sig; for (const b of box.children) if (SCENES[b.dataset.scene].abstract || b.dataset.scene === 'image') paintThumb(b); }
     }
-    for (const b of box.children) b.setAttribute('aria-checked', String(b.dataset.scene === amb.key));
+    for (const b of box.children) b.setAttribute('aria-checked', String(b.dataset.scene === sceneKey())); // (the one asked: its painting may wait a frame or two, see paintFaded)
   }
   function pickScene(k) {
     if (k === 'image' && !userImg) { $('imgFile').click(); return; }
     S.scene = k; save(); paintFaded();
-    for (const b of $('thumbs').children) b.setAttribute('aria-checked', String(b.dataset.scene === amb.key));
+    for (const b of $('thumbs').children) b.setAttribute('aria-checked', String(b.dataset.scene === sceneKey())); // (the one asked, painted or not yet)
   }
   // A new scene (or a new image) takes the place of the old one by a fade: what is on screen is kept as a picture
-  // (snapScene, which a resize uses too) and fades out over the new painting. Once, not every frame.
+  // (snapScene, which a resize uses too) and fades out over the new painting. Once, not every frame. The painting waits
+  // for the next frame to be on screen first (two frames begun: the GPU is then free of it): the chosen thumbnail shows at
+  // once, and the picture covers the scene meanwhile (the last scene's motion goes on under it, unseen). A later choice in
+  // between replaces it.
+  let fadedAsk = 0;
   function paintFaded() {
     const fade = amb.on && !reduceMotion;
-    if (fade) snapScene();
-    amb.paint();
-    if (fade) fadeSnap();
+    if (!fade) { amb.paint(); return; }
+    snapScene();
+    const n = ++fadedAsk;
+    requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(() => {
+      if (n !== fadedAsk) return;
+      try { if (amb.on) amb.paint(); } finally { fadeSnap(); }
+    })));
   }
 
   // Weather: seven skies for each painted scene (or an hour), chosen per scene; until then, the one the scene was drawn with.
@@ -3755,7 +4008,8 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
   function weatherOf(k) {
     const sc = SCENES[k];
     if (!sc || !sc.weather) return null;
-    return k === amb.key && amb.D ? amb.D.key : wxDay(skyOf(k)).key;
+    // (a sky asked for and not painted yet, see stepOn: already that one, so the popover shows the choice at once)
+    return k === amb.key && amb.D && !(amb.step && amb.step.due) ? amb.D.key : wxDay(skyOf(k)).key;
   }
   const weatherName = (k, w) => (SCENES[k].weatherNames && SCENES[k].weatherNames[w]) || WEATHER_NAMES[w];
   // The sound follows the weather: rain when it rains, the scene's own sound otherwise (a fire stays a fire, snow stays wind).
@@ -3832,7 +4086,7 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
   function supportOf(k) {
     const v = S.support && S.support['*'];
     if (v === 'none' || v === 'native' || SUPPORTS[v]) return v;
-    return S.integrate === false ? 'none' : SUPPORT_PRESET[k] || 'native';
+    return 'bubble'; // (until one is chosen: the bubble, in every scene)
   }
   const supName = (id, sc) => id === 'none' ? 'Simple' : id === 'native' ? ({ page: 'Feuille', air: 'Ombre', flat: 'Motif' })[sc.integrate] || 'Scène' : SUPPORTS[id].name;
   let supBg = null;
@@ -3857,7 +4111,7 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
       const spread = !!b.spread && W >= 2 * cw + g + 2 * b.side;
       T = { x: spread ? W / 2 + g / 2 : (W - cw) / 2, y: b.top, w: cw, h: H - b.top - b.bottom };
       const left = spread ? { x: T.x - cw - g, y: T.y, w: cw, h: T.h } : null;
-      try { sp.draw(c, T, W, H, Object.assign({ u, scene: k, light: null, under: null, left, mini: true, R: mulberry(5) }, supOpts())); } catch (e) { console.error(e); }
+      try { sp.draw(c, T, W, H, Object.assign({ u, scene: k, light: null, under: null, left, mini: true, R: mulberry(5) }, supOpts(id))); } catch (e) { console.error(e); }
       ink = supInk(id, k);
     }
     c.fillStyle = ink; c.globalAlpha = 0.55;
@@ -3872,18 +4126,16 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
         b.type = 'button'; b.className = 'thumb'; b.dataset.sup = id; b.setAttribute('role', 'radio');
         cv.width = THUMB_W * 2; cv.height = THUMB_H * 2;
         b.append(cv, name);
-        b.addEventListener('click', () => { S.support = { '*': id }; save(); amb.integrate(); syncAmbBar(); });
+        b.addEventListener('click', () => { bookAway(false, true); S.support = { '*': id }; save(); amb.integrate(); syncAmbBar(); });
         box.append(b);
       }
     }
-    const sig = k + weatherOf(k) + S.bg + S.fg + S.veil + S.shade + (k === 'image' && userImg ? userImg.src : '');
+    const sig = k + weatherOf(k) + S.bg + S.fg + S.veil + S.shade + JSON.stringify(S.supCols || {}) + (k === 'image' && userImg ? userImg.src : '');
     const repaint = !supBg || supBg.sig !== sig;
     for (const b of box.children) {
       const id = b.dataset.sup;
       b.querySelector('span').textContent = supName(id, sc);
       b.setAttribute('aria-checked', String(id === pick));
-      b.classList.toggle('pre', id === (SUPPORT_PRESET[k] || 'native'));
-      b.title = id === (SUPPORT_PRESET[k] || 'native') ? 'Conseillé pour cette scène' : '';
     }
     if (repaint) { // the scene in small, then one preview per frame: the popover opens at once
       const queue = [...box.children], mine = supBg = { sig, cv: null };
@@ -3895,6 +4147,55 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
       };
       requestAnimationFrame(next);
     }
+    supPanel();
+  }
+
+  // Under the previews, the settings of the support in use, and only those: the colours of an object support (its own, or
+  // one of the reading presets), the page's colours, how opaque the ground and whether the scene blurs behind it (« Simple »),
+  // the sheet's or the shade's opacity (the scene's own way). The bubble has its own panel (bubUI).
+  for (const p of PRESETS) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'sw'; b.title = p.name; b.setAttribute('aria-label', p.name); b.setAttribute('role', 'radio');
+    b.style.background = p.bg; b.style.color = p.fg; b.textContent = 'a'; b.dataset.bg = p.bg; b.dataset.fg = p.fg;
+    b.addEventListener('click', () => supColour(p.bg, p.fg));
+    $('spCols').append(b);
+  }
+  {
+    const b = document.createElement('button');
+    b.type = 'button'; b.setAttribute('role', 'radio'); b.textContent = 'Les siennes'; b.title = 'Les couleurs du support lui-même';
+    b.addEventListener('click', () => supColour(null));
+    $('spNat').append(b);
+  }
+  // A colour for the support in use (null: its own). « Simple » shows the page's colours: they change.
+  function supColour(bg, fg) {
+    const id = supportOf(amb.key);
+    if (id === 'none') { if (!bg) return; S.bg = bg; S.fg = fg; apply(); save(); amb.sheet(); supPanel(); return; }
+    if (!SUPPORTS[id] || id === 'bubble') return;
+    S.supCols = Object.assign({}, S.supCols);
+    if (bg) S.supCols[id] = { bg, fg }; else delete S.supCols[id];
+    save(); amb.integrate(); syncAmbBar();
+  }
+  $('spBg').addEventListener('input', (e) => { S.bg = e.target.value; S.fg = luminance(S.bg) > 0.3 ? '#26231f' : '#dcd7ce'; apply(); save(); amb.sheet(); supPanel(); });
+  $('spFg').addEventListener('input', (e) => { S.fg = e.target.value; apply(); save(); amb.sheet(); });
+  function supPanel() {
+    const k = amb.key, id = supportOf(k), mode = amb.mode || '', obj = !!SUPPORTS[id] && id !== 'bubble', simple = id === 'none';
+    const page = mode === 'page', air = mode === 'air';
+    $('spColRow').hidden = !(simple || obj); $('spNat').hidden = !obj; $('spPickRow').hidden = !simple;
+    const cur = simple ? { bg: S.bg, fg: S.fg } : obj ? supCol(id) : null;
+    for (const b of $('spNat').children) b.setAttribute('aria-checked', String(!cur));
+    for (const b of $('spCols').children) b.setAttribute('aria-checked', String(!!cur && b.dataset.bg === cur.bg && b.dataset.fg === cur.fg));
+    if (simple) { $('spBg').value = S.bg; $('spFg').value = S.fg; }
+    const vk = simple ? 'veil' : page ? 'sheet' : air ? 'shade' : null;
+    $('spVeilRow').hidden = !vk;
+    if (vk) {
+      $('spVeilLbl').textContent = simple ? 'Opacité du fond' : page ? 'Opacité de la feuille' : 'Ombre derrière le texte';
+      $('spVeil').dataset.key = vk; $('spVeil').value = S[vk]; $('spVeilRow').querySelector('output').textContent = Math.round(S[vk] * 100) + ' %';
+    }
+    $('spFrostRow').hidden = !(simple || page); $('spFrost').checked = !!S.frost;
+    $('supParams').hidden = id === 'bubble' || ($('spColRow').hidden && !vk);
+    $('supHint').textContent = SUPPORTS[id] ? 'Sa barre le déplace. Son coin, tiré de côté, change la taille du texte ; vers le bas, la hauteur du support. Le point jaune range le livre dans le dock.'
+      : 'La taille et la police du texte se règlent dans les Réglages, les mêmes sur tous les supports.';
+    refreshSliders();
   }
 
   // Sound choices: the scene's own sound, or any other.
@@ -3908,18 +4209,28 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
 
   // Liquid glass shows what is behind it: over a bright part of the scene the dock's icons turn dark. The picture under the
   // dock (the scene and its support) is read small, 24 × 4 pixels, after each change of scene or sky and every 3 s.
-  const dockSamp = document.createElement('canvas'); dockSamp.width = 24; dockSamp.height = 4;
-  const dockSX = dockSamp.getContext('2d', { willReadFrequently: true });
   let dockT = 0;
+  // A few pixels of the scene read back (the light under the dock, the colour under the column): the regions are scaled
+  // down on the GPU into a small canvas that stays there (160 × 104, big enough for that), then only w × h pixels of it are
+  // read. Drawn straight into a canvas made for reading (willReadFrequently, on the CPU), a canvas on the GPU is first read
+  // back whole (13 to 24 MB for #bg and #sup), which the opening of the ambiance waited for.
+  let readC = null, readX = null;
+  function readBack(parts, w, h) {
+    if (!readC) { readC = document.createElement('canvas'); readC.width = 160; readC.height = 104; readX = readC.getContext('2d'); }
+    const x = readX;
+    x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; x.imageSmoothingQuality = 'high';
+    x.clearRect(0, 0, w, h);
+    for (const [c, sx, sy, sw, sh] of parts) x.drawImage(c, sx, sy, sw, sh, 0, 0, w, h);
+    return x.getImageData(0, 0, w, h).data;
+  }
   function dockTone() {
-    if (!amb.on) return;
+    return; // (one dark glass, legible over any scene: the dock no longer reads the scene under it to turn light or dark)
     let L = luminance(S.bg);
     if (!(amb.sc && amb.sc.abstract)) {
       const d = $('ambBar').querySelector('.dock').getBoundingClientRect(), k = bgC.width / Math.max(1, innerWidth);
       if (!d.width || !bgC.width) return;
       try {
-        for (const c of [bgC, supC]) if (c.width && (c === bgC || document.body.classList.contains('int-sup'))) dockSX.drawImage(c, d.left * k, d.top * k, d.width * k, d.height * k, 0, 0, 24, 4);
-        const px = dockSX.getImageData(0, 0, 24, 4).data;
+        const px = readBack([bgC, supC].filter((c) => c.width && (c === bgC || document.body.classList.contains('int-sup'))).map((c) => [c, d.left * k, d.top * k, d.width * k, d.height * k]), 24, 4);
         let sum = 0;
         for (let i = 0; i < px.length; i += 4) sum += 0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2];
         L = sum / (px.length / 4) / 255;
@@ -3944,18 +4255,12 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
       $('dkPrecip').querySelector('use').setAttribute('href', snow ? '#i-snow' : '#i-rain');
       $('precipAmt').value = precipOf(k); $('precipOut').textContent = precipOf(k) + ' %';
     }
-    $('dkDrops').hidden = !p || p.type !== 'rain' || mode === 'sup'; $('dkDrops').setAttribute('aria-pressed', String(!!S.drops));
+    $('dropsRow').hidden = !p || p.type !== 'rain' || mode === 'sup'; $('dropsOn').checked = !!S.drops;
     $('dkSound').querySelector('use').setAttribute('href', S.sound ? '#i-sound' : '#i-mute');
     $('dkSound').dataset.tip = S.sound ? 'Son · activé' : 'Son · coupé'; $('dkSound').setAttribute('aria-label', S.sound ? 'Son, activé' : 'Son, coupé');
     $('soundOn').checked = S.sound; $('popSound').classList.toggle('off', !S.sound);
     for (const b of $('soundPick').children) b.setAttribute('aria-checked', String(b.dataset.sound === S.soundPick));
     $('vol').value = S.vol; $('volOut').textContent = S.vol + ' %';
-    // One slider for what sits under the text: the shade (text in the open), the paper sheet, or the reading colour.
-    const air = mode === 'air', page = mode === 'page', vk = air ? 'shade' : page ? 'sheet' : 'veil', veilName = air ? 'Ombre' : page ? 'Feuille' : 'Fond';
-    $('dkVeil').hidden = mode === 'flat' || mode === 'sup';
-    $('veilLbl').textContent = veilName; $('dkVeil').dataset.tip = veilName; $('dkVeil').setAttribute('aria-label', veilName);
-    $('veil').dataset.key = vk; $('veil').value = S[vk]; $('veilOut').textContent = Math.round(S[vk] * 100) + ' %';
-    $('frostRow').hidden = air; $('frost').checked = !!S.frost;
     if (openPop && openPop.btn.hidden) closePop();
     placePop();
     refreshSliders();
@@ -3975,6 +4280,13 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
   }
 
   $('ambBtn').addEventListener('click', enterAmb);
+  // The pointer resting on the button a moment (passing over it is not enough), or the focus coming to it: the scene is
+  // painted ahead (amb.warm).
+  let warmT = 0;
+  const warmSoon = () => { clearTimeout(warmT); warmT = setTimeout(() => amb.warm(), 120); };
+  $('ambBtn').addEventListener('pointerenter', warmSoon);
+  $('ambBtn').addEventListener('focus', warmSoon);
+  $('ambBtn').addEventListener('pointerleave', () => clearTimeout(warmT));
   $('ambExit').addEventListener('click', exitAmb);
   $('ambSettings').addEventListener('click', () => { closePop(); drawer('settings'); });
   $('imgChange').addEventListener('click', () => $('imgFile').click());
@@ -3983,17 +4295,17 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
   document.querySelector('.app').addEventListener('wheel', (e) => {
     if (amb.on && amb.sup && !reader.contains(e.target)) reader.scrollBy({ top: e.deltaY * (e.deltaMode === 1 ? 16 : 1) });
   }, { passive: true });
-  $('dkDrops').addEventListener('click', () => { S.drops = !S.drops; save(); syncAmbBar(); });
+  $('dropsOn').addEventListener('change', (e) => { S.drops = e.target.checked; save(); syncAmbBar(); });
   $('precipAmt').addEventListener('input', (e) => {
     S.precip[precipKey(amb.key)] = +e.target.value; $('precipOut').textContent = precipOf(amb.key) + ' %';
     save(); amb.precipSet(); sound.level(); if (reduceMotion) amb.run();
   });
   $('soundOn').addEventListener('change', (e) => { S.sound = e.target.checked; save(); if (S.sound) sound.start(); else sound.stop(); syncAmbBar(); });
   $('vol').addEventListener('input', (e) => { S.vol = +e.target.value; $('volOut').textContent = S.vol + ' %'; save(); sound.level(); });
-  $('veil').addEventListener('input', (e) => { const k = e.target.dataset.key || 'veil'; S[k] = +e.target.value; $('veilOut').textContent = Math.round(S[k] * 100) + ' %'; amb.sheet(); save(); });
-  $('frost').addEventListener('change', (e) => { S.frost = e.target.checked; amb.sheet(); save(); });
+  $('spVeil').addEventListener('input', (e) => { const k = e.target.dataset.key || 'veil'; S[k] = +e.target.value; $('spVeilRow').querySelector('output').textContent = Math.round(S[k] * 100) + ' %'; amb.sheet(); save(); });
+  $('spFrost').addEventListener('change', (e) => { S.frost = e.target.checked; amb.sheet(); save(); });
   enhanceRange($('precipAmt'), (v) => v + ' %');
-  enhanceRange($('veil'), (v) => Math.round(v * 100) + ' %');
+  enhanceRange($('spVeil'), (v) => Math.round(v * 100) + ' %');
   enhanceRange($('vol'), (v) => v + ' %');
 
   addEventListener('mousemove', () => { if (amb.on) wake(); }, { passive: true });
@@ -4147,6 +4459,44 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
       A.weather = D ? D.key : null; A.sky = A.now = D; A.play = playSfx;
       return A;
     },
+    // The first opening paints its scene from nothing: the scene makes its caches for the size (the alps' relief, the
+    // coast's wave masks, the lake's mist…) and its code runs for the first time, which kept the click waiting some 150 ms
+    // more than an opening that finds them. So at a sign that the ambiance is about to open (the pointer resting on its
+    // button, or the focus on it: see warmSoon), the scene is painted ahead at the window's size, as the opening paints
+    // first, on a canvas dropped at once: only the caches stay, the ones the opening makes anyway. The picture, then its
+    // motion, each in a task of its own (a click in between waits for one of them at most). Once for a scene and a size
+    // until the next opening (the caches hang on the size, not on the sky); never while the ambiance is open, nor for an
+    // image or an abstract field. Nothing is done for whoever never comes to the button; whoever comes and does not open
+    // keeps those caches (purged after 20 s where the scenes can do it).
+    warm(stage = 0) {
+      const k = sceneKey(), sc = SCENES[k], W = innerWidth, H = innerHeight;
+      if (this.on || !sc || sc.abstract || k === 'image' || !W || !H) return;
+      const sky = skyOf(k), sig = [k, W, H, devicePixelRatio].join();
+      if (stage === 0 ? this.warmSig === sig : this.warmSig !== sig || !this.warmA) return; // (done already, or changed meanwhile)
+      kitCloudsFresh(true); // (as paint has it: the clouds as that sky has them)
+      try {
+        if (stage === 0) {
+          this.warmSig = sig; this.warmA = null;
+          const bd = Math.min(devicePixelRatio || 1, 1.5), cv = document.createElement('canvas'), X = cv.getContext('2d');
+          cv.width = Math.round(W * bd); cv.height = Math.round(H * bd); X.setTransform(bd, 0, 0, bd, 0, 0);
+          const D = sc.weather ? wxDay(sky, sc.lights, evolving() ? Math.floor(clock.h / 24) : 0) : null;
+          const A = sc.draw(X, W, H, mulberry(7), { img: userImg, colors: { bg: S.bg, fg: S.fg }, weather: D ? D.key : null, sky: D }) || { u: Math.min(W, H) };
+          if (D) kitGrade(X, W, H, D, sc.grade);
+          A.weather = D ? D.key : null; A.sky = A.now = D;
+          // The painting is handed to the GPU before the canvas goes (a snapshot, closed at once): what the GPU makes ready
+          // the first time it draws such a picture is made now too, without the page waiting for it (a read of its pixels would).
+          const drop = () => { cv.width = cv.height = 0; };
+          if (window.createImageBitmap) createImageBitmap(cv).then((b) => { b.close(); drop(); }, drop); else drop();
+          if (sc.fx) { this.warmA = A; setTimeout(() => this.warm(1)); }
+        } else {
+          const A = this.warmA; this.warmA = null;
+          sc.fx.init(W, H, A, mulberry(11));
+        }
+      } catch { this.warmA = null; } finally { kitCloudsFresh(false); }
+      clearTimeout(this.warmPurge);
+      const purge = window.LISEUSE_SCENES.kitPurge; // (where the scenes can drop their caches: if the ambiance did not open after all)
+      if (purge) this.warmPurge = setTimeout(() => { if (!this.on) { purge(null); this.warmSig = ''; } }, 20000);
+    },
     // How many streaks or flakes for an amount (0..100) on the scene's clip.
     precipCount(amt) {
       const c = this.clip, snow = !!c && this.sc.precip.type === 'snow';
@@ -4234,10 +4584,18 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
       const v = this.vals();
       this.step = null; // (what it held is on screen)
       const S = this.still(v);
-      this.step = { kind, t0: 0, dur: dur * 1000, S, J: null };
-      const J = this.step.J = this.picture(st, kind, dur);
-      this.handOver(J, kind, dur);
-      this.step.t0 = performance.now();
+      // The new painting and the motion's hand-over are each done on a frame of their own (stepOn, from dayTick), not in the
+      // gesture that asked for the sky: the chosen sky or hour shows at once, and no frame carries both. Neither starts
+      // before a frame has been drawn since (ready): until then, and until the hand-over, the screen shows what it showed.
+      const sp = this.step = { kind, t0: 0, dur: dur * 1000, S, J: null, st, due: 2, ready: false };
+      requestAnimationFrame(() => { sp.ready = true; });
+    },
+    // A step asked by stepTo, one part per frame: its painting, then the hand-over of the motion (the fade starts there).
+    stepOn(sp) {
+      if (!sp.ready) return;
+      if (sp.due === 2) { sp.J = this.picture(sp.st, sp.kind, sp.dur / 1000); sp.due = 1; return; }
+      this.handOver(sp.J, sp.kind, sp.dur / 1000);
+      sp.due = 0; sp.t0 = performance.now();
     },
     goto(dur) { this.stepTo(this.skyState(), dur, 'jump'); },
     // The hours going by: a step from the paintings P0 and P1 (the same one when the screen starts from rest), the next one
@@ -4301,7 +4659,7 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
       // The colour under the text and the light on the support follow the picture, at each step (what follows them glides).
       this.sampleUnder(); this.sheet(true);
       if (this.sup && this.box && (kind !== 'drift' || SUPPORTS[this.sup].live || Math.abs(lk - this.supLk) > 0.08)) { this.supLk = lk; this.drawSupport(true); }
-      if (kind !== 'drift') sceneThumbRefresh();
+      if (kind !== 'drift') setTimeout(sceneThumbRefresh, 100); // (in a task of its own: not on the frame that paints the support again)
     },
     // Let a step or a fade go without finishing it (paint() starts over).
     clearOld() {
@@ -4322,6 +4680,7 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
       if (this.fade && !this.fade.frozen) this.fade.A.now = N;
       const sp = this.step;
       if (sp && sp.kind === 'drift') this.driftTick(sp, now, live);
+      else if (sp && sp.due) this.stepOn(sp);
       else if (sp) this.fadeTick(sp, now);
       if (now >= this.nextCheck) {
         this.nextCheck = now + 500;
@@ -4485,36 +4844,27 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
   addEventListener('pointerup', () => { hourDrag = false; });
   enhanceRange($('hourAmt'), (v) => fmtHour(+v));
   if (location.hash === '#debug') window.__day = { amb, clock, SUPPORTS, get sound() { return sound; } }; // for tests
-  /* ---------------- supports: reading colours, the open book's contents page ---------------- */
-  // A support keeps its own tones (the scene's paper, a night display) until the reader picks colours; from then on its
-  // surface takes the background and its text the ink, on every support. S.supCol records the choice; before any choice,
-  // colours that differ from the defaults count as one (they were picked before supports followed them).
-  const followCols = () => (S.supCol ?? (S.bg !== DEF.bg || S.fg !== DEF.fg));
-  const supOpts = () => (followCols() ? { bg: S.bg, fg: S.fg } : {});
+  /* ---------------- supports: their colours, the open book's contents page ---------------- */
+  // Each object support keeps its own tones (the scene's paper, a night display) until colours are picked for it, in its own
+  // panel under the supports: S.supCols[support] = { bg, fg } (its surface takes bg, keeping its material and light; its text
+  // the ink). The bubble has none (it is clear); « Simple » takes the page's colours (S.bg, S.fg).
+  const hex6 = (v) => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
+  const supCol = (sup) => { const c = S.supCols && S.supCols[sup]; return c && hex6(c.bg) && hex6(c.fg) ? c : null; };
+  const supOpts = (sup = amb.sup) => { const c = supCol(sup); return c ? { bg: c.bg, fg: c.fg } : {}; };
   function supInk(sup, k) {
-    const own = SUPPORTS[sup].ownInk && SUPPORTS[sup].ownInk(); // a support may set its own ink (the bubble on a colour)
+    const own = SUPPORTS[sup].ownInk && SUPPORTS[sup].ownInk(); // a support may set its own ink (the bubble)
     if (own) return own;
-    if (followCols()) return S.fg;
+    const c = supCol(sup);
+    if (c) return c.fg;
     const ink = SUPPORTS[sup].ink;
     return typeof ink === 'function' ? ink(k) : ink;
   }
-  const supLight = (sup, k) => (followCols() && !(SUPPORTS[sup].ownInk && SUPPORTS[sup].ownInk()) ? luminance(S.fg) > 0.3 : !!SUPPORTS[sup].light);
-  // Picking a swatch or a colour (capture: before the panel's own handlers repaint) makes the supports follow.
-  $('settings').addEventListener('click', (e) => { if (e.target.closest && e.target.closest('#swatches .sw')) { S.supCol = true; setTimeout(supColHint); } }, true);
-  $('settings').addEventListener('input', (e) => { if (e.target.id === 'bgPick' || e.target.id === 'fgPick') { S.supCol = true; setTimeout(supColHint); } }, true);
-  $('reset').addEventListener('click', () => setTimeout(supColHint));
-  // The hint under the colours says what they do where the text is now.
-  function supColHint() {
-    const h = $('supColHint'); if (!h) return;
-    if (!(amb.on && amb.sup)) { h.textContent = 'Sur la feuille ou dans l’ombre du décor, le texte prend les couleurs de la scène. Choisis « Simple » dans le dock pour retrouver les tiennes.'; return; }
-    const on = followCols();
-    h.replaceChildren(on ? 'Posé sur un support, le texte prend tes couleurs : le papier, la toile, le passe-partout, l’écran ou la bulle en prennent le fond. '
-      : 'Posé sur un support, le texte garde les couleurs du support tant que tu n’en choisis pas d’autres. ');
-    if (on) {
-      const b = document.createElement('button'); b.type = 'button'; b.className = 'linkish'; b.textContent = 'Couleurs du support';
-      b.addEventListener('click', () => { S.supCol = false; save(); apply(); supColHint(); });
-      h.append(b);
-    }
+  const supLight = (sup, k) => { const c = supCol(sup); return c && !(SUPPORTS[sup].ownInk && SUPPORTS[sup].ownInk()) ? luminance(c.fg) > 0.3 : !!SUPPORTS[sup].light; };
+  // Colours that followed the reading colours on every support before (S.supCol): kept, now on each support.
+  if (!S.supCols || typeof S.supCols !== 'object' || Array.isArray(S.supCols)) {
+    const was = S.supCol === true || (S.supCol == null && (S.bg !== '#f4efe6' || S.fg !== '#2a2622'));
+    S.supCols = was ? Object.fromEntries(['easel', 'frame', 'book', 'screen', 'folio'].filter((k) => SUPPORTS[k]).map((k) => [k, { bg: S.bg, fg: S.fg }])) : {};
+    delete S.supCol; save();
   }
 
   // The layer over the text for what belongs to the support: what scales and moves with it (.sup-xf: the contents page,
@@ -4678,7 +5028,6 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
     if (!obj) supXf.clear();
     folio.use(amb.on && sup === 'folio');
     if (!obj) bookToc.el.classList.remove('on');
-    supColHint();
   }
 
   /* ---------------- supports: moving and scaling, visionOS-style ---------------- */
@@ -4697,8 +5046,7 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
       this.obj = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
       this.o = [(x0 + x1) / 2, (y0 + y1) / 2];
       const m = 6, W = amb.W, H = amb.H;
-      const fit = !!(SUPPORTS[amb.sup] && SUPPORTS[amb.sup].fit); // (its height on the screen stays whatever the scale)
-      this.lim = [Math.min(1, 0.5), Math.max(1, Math.min(1.8, (W - 2 * m) / this.obj.w, fit ? Infinity : (H - 2 * m) / this.obj.h))];
+      this.lim = [0.5, Math.max(1, Math.min(1.8, (W - 2 * m) / this.obj.w))]; // (its height on the screen stays whatever the scale)
       const p = (S.place || {})[this.key()];
       this.on = true;
       this.set(p ? [p.x * W, p.y * H] : [0, 0], p ? p.s : 1);
@@ -4751,12 +5099,7 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
       bar.classList.toggle('low', by < 36); bar.classList.toggle('lft', bx < 70); // (the dot's label would leave the window)
       const gx = Math.min(amb.W - 30, r.x + r.w - 12), gy = Math.min(amb.H - 30, r.y + r.h - 12);
       grip.style.transform = `translate(${gx.toFixed(1)}px,${gy.toFixed(1)}px)`;
-      const fit = !!(SUPPORTS[amb.sup] && SUPPORTS[amb.sup].fit);
-      if (fit !== grip.fit) {
-        grip.fit = fit;
-        grip.setAttribute('aria-label', fit ? 'Taille du texte (de côté) et hauteur de la bulle (vers le bas)' : 'Agrandir ou réduire le support');
-        if (fit) grip.dataset.tip = '→ texte plus grand · ↓ bulle plus haute'; else delete grip.dataset.tip;
-      }
+      if (!grip.fit) { grip.fit = true; grip.dataset.tip = '→ texte plus grand · ↓ support plus haut'; }
       this.near = { x: r.x - 70, y: r.y - 60, x1: r.x + r.w + 70, y1: r.y + r.h + 50 };
     },
   };
@@ -4764,8 +5107,8 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
   // The bar: a tiny dot (puts the object back) and the pill, in a larger invisible hit area; the grip: a curved corner.
   const bar = document.createElement('div'), grip = document.createElement('div');
   bar.className = 'sup-bar'; bar.hidden = true;
-  bar.innerHTML = '<button type="button" class="sup-dot" aria-label="Remettre en place" data-tip="Remettre en place"></button><div class="sup-pill" role="button" tabindex="0" aria-label="Déplacer le support · double-clic pour le remettre en place"><i></i></div>';
-  grip.className = 'sup-grip'; grip.hidden = true; grip.setAttribute('role', 'button'); grip.setAttribute('aria-label', 'Agrandir ou réduire le support');
+  bar.innerHTML = '<button type="button" class="sup-dot sup-away" aria-label="Ranger le livre dans le dock" data-tip="Ranger le livre"></button><button type="button" class="sup-dot sup-home" aria-label="Remettre en place" data-tip="Remettre en place"></button><div class="sup-pill" role="button" tabindex="0" aria-label="Déplacer le support · double-clic pour le remettre en place"><i></i></div>';
+  grip.className = 'sup-grip'; grip.hidden = true; grip.setAttribute('role', 'button'); grip.setAttribute('aria-label', 'Taille du texte (de côté) et hauteur du support (vers le bas)');
   grip.innerHTML = '<svg viewBox="0 0 30 30" aria-hidden="true"><path d="M25 8.5v4.5a12 12 0 0 1-12 12H8.5"/></svg>';
   supUI.append(bar, grip);
   const pill = bar.querySelector('.sup-pill');
@@ -4777,7 +5120,7 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
     e.preventDefault(); e.stopPropagation();
     const el = e.currentTarget; try { el.setPointerCapture(e.pointerId); } catch {}
     const r = supXf.map(supXf.obj), c = [r.x + r.w / 2, r.y + r.h / 2];
-    if (kind === 'scale' && SUPPORTS[amb.sup] && SUPPORTS[amb.sup].fit) kind = 'fit';
+    if (kind === 'scale') kind = 'fit'; // (every support: across, the size of the text; down, its height)
     drag = { kind, el, id: e.pointerId, x: e.clientX, y: e.clientY, d: supXf.d.slice(), s: supXf.s, c, r, r0: Math.max(30, Math.hypot(e.clientX - c[0], e.clientY - c[1])) };
     document.body.classList.add('sup-moving', kind === 'move' ? 'sup-dragging' : 'sup-scaling');
     for (const l of [document.querySelector('.app'), supXfEl, supC, bubGlC, bubSpW]) l.style.willChange = 'transform';
@@ -4807,10 +5150,11 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
       else if (drag.kind === 'fit') supFitDrag();
       else supXf.set(drag.d, drag.s * Math.hypot(drag.px - drag.c[0], drag.py - drag.c[1]) / drag.r0);
     }
-    const moved = drag.px != null;
+    const moved = drag.px != null, fit = drag.kind === 'fit';
     drag = null;
     document.body.classList.remove('sup-moving', 'sup-scaling', 'sup-dragging');
     for (const l of [document.querySelector('.app'), supXfEl, supC, bubGlC, bubSpW]) l.style.willChange = '';
+    if (moved && fit) supCommit();
     if (moved) { supXf.save(); amb.layout(); }
   }
   // A support cut to its text (the bubble) is not scaled whole by its grip: across, the grip sets the size of its text (its
@@ -4825,14 +5169,40 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
     return { s: p ? p.s : 1, ch: chProbe.offsetWidth / 100 || S.size * 0.5, lh: S.size * S.lh, pad: parseFloat(getComputedStyle(column).paddingLeft) || 28, measure: S.measure };
   }
   // d, s: where and at what scale; hv: its height on the screen (px; left as it is when omitted). Kept in S at once, saved by
-  // the caller.
+  // the caller. The bubble keeps its height in its own settings (S.bubble.h); the others, the height of their text area on
+  // the screen, as a share of the window (S.supH). The scale is only the preview while the grip is held (supCommit).
   function supFit(d, s, hv) {
     const sp = SUPPORTS[amb.sup];
-    if (!sp || !sp.fit || !supXf.on) return;
-    s = Math.min(supXf.lim[1], Math.max(supXf.lim[0], s));
+    if (!sp || !supXf.on) return;
+    s = Math.min(supXf.lim[1], 40 / S.size, Math.max(supXf.lim[0], 12 / S.size, s));
     S.place = Object.assign({}, S.place, { [supXf.key()]: { x: +(d[0] / amb.W).toFixed(4), y: +(d[1] / amb.H).toFixed(4), s: +s.toFixed(4) } });
-    if (hv != null) { sp.opts.h = +(Math.min(amb.H - 12, Math.max(0.15 * amb.H, hv)) / amb.H).toFixed(4); S.bubble = Object.assign({}, S.bubble, { h: sp.opts.h }); }
-    amb.placeSupport(); amb.drawSupport(); bubUI.textShape(); bubUI.panel();
+    if (hv != null && sp.fit) { sp.opts.h = +(Math.min(amb.H - 12, Math.max(0.15 * amb.H, hv)) / amb.H).toFixed(4); S.bubble = Object.assign({}, S.bubble, { h: sp.opts.h }); }
+    else if (hv != null) {
+      const e = sp.edge ? sp.edge(Math.min(amb.W, amb.H)) : { t: 0, b: 0 }, th = hv - (e.t + e.b) * s;
+      S.supH = Object.assign({}, S.supH, { [amb.sup]: +(Math.min(amb.H - 12, Math.max(0.12 * amb.H, th)) / amb.H).toFixed(4) });
+    }
+    amb.placeSupport(); amb.drawSupport();
+    if (sp.fit) { bubUI.textShape(); bubUI.panel(); }
+  }
+  // The grip let go: the scale it gave becomes the size of the text (the settings' « Taille », the same for every support),
+  // and the support is laid out again at scale 1. The text is set once, here, not while the grip moves.
+  function supCommit() {
+    const k = supXf.key(), p = (S.place || {})[k];
+    if (!p) return;
+    const s = p.s || 1;
+    S.place = Object.assign({}, S.place, { [k]: Object.assign({}, p, { s: 1 }) });
+    if (Math.abs(s - 1) > 0.004) S.size = Math.min(40, Math.max(12, Math.round(S.size * s)));
+    apply(); save();
+  }
+  // An object's text area as high as the reader made it (S.supH; the bubble has its own): the bands above and below it
+  // shrink or grow in proportion, the object staying within the window.
+  function supHeight(sp, b, u) {
+    const hf = !sp.fit && S.supH && +S.supH[amb.sup];
+    if (!(hf > 0)) return b;
+    const H = amb.H, p = (S.place || {})[supXf.key()], s = (p && p.s) || 1, e = sp.edge ? sp.edge(u) : { t: 0, b: 0 };
+    const lo = 3 * S.size * S.lh + 8, hi = (H - 12) / s - e.t - e.b;
+    const th = Math.max(Math.min(lo, hi), Math.min(hi, (hf * H) / s)), free = H - th, k = b.top / Math.max(1, b.top + b.bottom);
+    return Object.assign({}, b, { top: free * k, bottom: free * (1 - k) });
   }
   function supFitDrag() {
     const r = drag.r, w = Math.max(60, r.w + 2 * (drag.px - drag.x));
@@ -4851,25 +5221,65 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
     const d0 = supXf.d.slice(), s0 = supXf.s, t0 = performance.now(), dur = reduceMotion ? 0 : 420;
     const step = (now) => {
       const t = dur ? Math.min(1, (now - t0) / dur) : 1, e = 1 - (1 - t) ** 3, sp = SUPPORTS[amb.sup];
-      if (sp && sp.fit) supFit([d0[0] * (1 - e), d0[1] * (1 - e)], s0 + (1 - s0) * e);
-      else supXf.set([d0[0] * (1 - e), d0[1] * (1 - e)], s0 + (1 - s0) * e);
+      supXf.set([d0[0] * (1 - e), d0[1] * (1 - e)], s0 + (1 - s0) * e);
       if (t < 1) requestAnimationFrame(step); else { supXf.save(); amb.layout(); }
     };
     requestAnimationFrame(step);
   }
   pill.addEventListener('dblclick', supReset);
-  bar.querySelector('.sup-dot').addEventListener('click', supReset);
+  bar.querySelector('.sup-home').addEventListener('click', supReset);
+  bar.querySelector('.sup-away').addEventListener('click', () => bookAway(true));
   // Keys on the bar: arrows move it, + and - scale it.
   pill.addEventListener('keydown', (e) => {
     const k = e.key, st = e.shiftKey ? 40 : 12, mv = { ArrowLeft: [-st, 0], ArrowRight: [st, 0], ArrowUp: [0, -st], ArrowDown: [0, st] }[k];
     if (mv) supXf.set([supXf.d[0] + mv[0], supXf.d[1] + mv[1]], supXf.s);
-    else if ((k === '+' || k === '=' || k === '-') && SUPPORTS[amb.sup] && SUPPORTS[amb.sup].fit) supFit(supXf.d, supXf.s * (k === '-' ? 0.95 : 1.05));
-    else if (k === '+' || k === '=' || k === '-') supXf.set(supXf.d, supXf.s * (k === '-' ? 0.95 : 1.05));
+    else if (k === '+' || k === '=' || k === '-') { S.size = Math.min(40, Math.max(12, S.size + (k === '-' ? -1 : 1))); apply(); save(); }
     else if (k === 'Enter' || k === 'Backspace') { supReset(); e.preventDefault(); return; }
     else return;
     e.preventDefault(); e.stopPropagation();
     clearTimeout(supXf.kt); supXf.kt = setTimeout(() => { supXf.save(); amb.layout(); }, 300);
   });
+  /* ---------------- the book put away in the dock ---------------- */
+  // The yellow dot beside the bar puts the book away (the text and its support): it shrinks into the dock, where a book
+  // waits in its place; that button brings it back, growing out of it. Only the scene is left; the book's layers are
+  // hidden (nothing of them is drawn or composited) and what moved them waits (the bubble's motion, the drops).
+  const AWAY = ['.app', '#sup', '#supOld', '#bubGL', '#bubSpW', '#supLeft', '#sheet', '#pageLight', '#drops', '#airShade', '#supUI', '#noteBubs'];
+  let awayAnim = null;
+  function bookIsAway() { return document.body.classList.contains('book-away'); }
+  function bookAway(on, quick) {
+    const cl = document.body.classList;
+    if (awayAnim) { for (const a of awayAnim) a.cancel(); awayAnim = null; }
+    else if (on === cl.contains('book-away')) return;
+    const btn = $('dkBook');
+    if (on) { closePop(); btn.hidden = $('dkBookSep').hidden = false; wake(); }
+    const q = btn.getBoundingClientRect();
+    if (!on) { btn.hidden = $('dkBookSep').hidden = true; cl.remove('book-away'); }
+    const after = () => { bubUI.motion(); if (!on) { sideBubs.sync(); amb.dB = null; } };
+    if (quick || reduceMotion || !amb.on || !q.width) { cl.toggle('book-away', on); after(); return; }
+    // from the book's centre on the screen to the button, a little shrinking, and back
+    const r = supXf.on && supXf.obj ? supXf.map(supXf.obj) : (() => { const t = textRect(), y = Math.max(0, t.top); return { x: t.left, y, w: t.width, h: Math.max(1, Math.min(innerHeight, t.bottom) - y) }; })();
+    const cx = r.x + r.w / 2, cy = r.y + r.h / 2, tx = q.left + q.width / 2 - cx, ty = q.top + q.height / 2 - cy;
+    bubUI.still();
+    const els = AWAY.map((s) => document.querySelector(s)).filter((el) => el && el.isConnected && getComputedStyle(el).display !== 'none');
+    const kept = els.map((el) => el.style.transformOrigin);
+    for (const el of els) { // (each turns about the book's centre: at rest their transforms are moves only, so the origin is free)
+      const b = el.getBoundingClientRect(), m = new DOMMatrixReadOnly(getComputedStyle(el).transform === 'none' ? undefined : getComputedStyle(el).transform);
+      el.style.transformOrigin = `${(cx - (b.left - m.e)).toFixed(1)}px ${(cy - (b.top - m.f)).toFixed(1)}px`;
+    }
+    const near = { translate: '0px 0px', scale: '1', opacity: 1 }, far = { translate: `${tx.toFixed(1)}px ${ty.toFixed(1)}px`, scale: '0.05', opacity: 0 };
+    const opt = on ? { duration: 460, easing: 'cubic-bezier(.5,0,.75,.2)', fill: 'forwards' } : { duration: 420, easing: 'cubic-bezier(.2,.75,.3,1)' };
+    const anims = awayAnim = els.map((el) => el.animate(on ? [near, far] : [far, near], opt));
+    anims[0].onfinish = () => {
+      if (awayAnim !== anims) return;
+      if (on) cl.add('book-away');
+      for (const a of anims) a.cancel();
+      els.forEach((el, i) => { el.style.transformOrigin = kept[i]; });
+      awayAnim = null; after();
+    };
+    if (on) btn.animate([{ scale: '1' }, { scale: '1.22', offset: 0.85 }, { scale: '1' }], { duration: 640, easing: 'ease-out' });
+  }
+  $('dkBook').addEventListener('click', () => bookAway(false));
+
   // The handles show when the pointer comes near the object, and hide with the rest of the controls (body.idle).
   addEventListener('pointermove', (e) => {
     const n = supXf.near, on = !!(supXf.on && n && e.clientX > n.x && e.clientX < n.x1 && e.clientY > n.y && e.clientY < n.y1);
@@ -4898,21 +5308,25 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
       for (let i = 0; i < id.data.length; i += 4) { const v = r() < 0.5 ? 40 : 255; id.data[i] = v; id.data[i + 1] = v * 0.96; id.data[i + 2] = v * 0.9; id.data[i + 3] = r() ** 3 * 22; }
       g.putImageData(id, 0, 0);
       g.lineCap = 'round';
-      for (let i = 0; i < 260; i++) { // fibres: short wandering hairs, wrapped at the edges
-        const x = r() * n, y = r() * n, a = r() * Math.PI * 2, l = 3 + r() * 13, dark = r() < 0.55;
-        g.strokeStyle = dark ? `rgba(90,70,45,${0.05 + r() * 0.09})` : `rgba(255,252,244,${0.06 + r() * 0.1})`; g.lineWidth = 0.4 + r() * 0.5;
+      // fibres: a few short hairs, wrapped at the edges, barely there (a fine book paper, not a hand-made sheet: many or
+      // strong, they read as worms drawn on the page)
+      for (let i = 0; i < 90; i++) {
+        const x = r() * n, y = r() * n, a = r() * Math.PI * 2, l = 2 + r() * 7, dark = r() < 0.5;
+        g.strokeStyle = dark ? `rgba(90,70,45,${0.03 + r() * 0.045})` : `rgba(255,252,244,${0.045 + r() * 0.06})`; g.lineWidth = 0.35 + r() * 0.35;
         for (const ox of [0, -n, n]) for (const oy of [0, -n, n]) {
           g.beginPath(); g.moveTo(x + ox, y + oy);
           g.quadraticCurveTo(x + ox + Math.cos(a + 0.6) * l * 0.6, y + oy + Math.sin(a + 0.6) * l * 0.6, x + ox + Math.cos(a) * l, y + oy + Math.sin(a) * l); g.stroke();
         }
       }
     });
+    // the formation of the sheet: small soft clouds, faint (large dark ones read as stains)
     const mot = mk(384, (g, n) => {
-      for (let i = 0; i < 70; i++) {
-        const x = r() * n, y = r() * n, rr = 20 + r() * 70, dark = r() < 0.5;
+      for (let i = 0; i < 110; i++) {
+        const x = r() * n, y = r() * n, rr = 12 + r() * 38, dark = r() < 0.5;
         for (const ox of [0, -n, n]) for (const oy of [0, -n, n]) {
+          if (x + ox < -rr || y + oy < -rr || x + ox > n + rr || y + oy > n + rr) continue;
           const gr = g.createRadialGradient(x + ox, y + oy, 0, x + ox, y + oy, rr);
-          gr.addColorStop(0, dark ? 'rgba(120,90,50,.028)' : 'rgba(255,253,246,.035)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+          gr.addColorStop(0, dark ? 'rgba(112,92,64,.015)' : 'rgba(255,253,246,.022)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
           g.fillStyle = gr; g.fillRect(x + ox - rr, y + oy - rr, rr * 2, rr * 2);
         }
       }
@@ -5009,7 +5423,8 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
       }
       return { T: { x: spread ? x : x, y, w: pw, h: ph }, left: spread ? { x: x - pw, y, w: pw, h: ph } : null };
     },
-    drawOpts() { return { progress: this.progress() }; },
+    // The reading's progress (the stacks of edges), and the sky's daylight and tint (the light on the book: see folioLit).
+    drawOpts() { const W = amb.D && amb.D.W; return { progress: this.progress(), day: W ? W.day : null, tint: W ? W.tint : null }; },
     // Called once the object is painted: the pages, the light of the scene on them, the opening if it is due.
     drawn(o) {
       this.painted = o.progress;
@@ -5024,9 +5439,17 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
     },
     // Paper and ink: the scene's book, or the reading colours; the scene's light falls on the pages as on the boards.
     paperTone(o) {
-      const V = SUPPORTS.folio.variant(amb.key, o.bg, o.fg), st = this.el.style, dark = !!V.dark || luminance(V.paper) < 0.18;
+      const F = SUPPORTS.folio, V = F.lit(F.variant(amb.key, o.bg, o.fg), o), st = this.el.style, dark = !!V.dark || luminance(V.paper) < 0.18;
+      // the paper's tone follows the light (warmer at night): when the painted book fades from its old light to the new
+      // one (amb.supFade, a second), the pages fade with it instead of changing at once
+      const was = st.getPropertyValue('--fol-paper').trim();
+      if (was && was !== V.paper && amb.supOld && amb.supOld.isConnected) {
+        this.el.classList.add('toning'); clearTimeout(this.toneT); this.toneT = setTimeout(() => this.el.classList.remove('toning'), 1100);
+      }
       st.setProperty('--fol-paper', V.paper); st.setProperty('--fol-ink', V.ink || o.fg); st.setProperty('--fol-sh', V.sh);
       st.setProperty('--fol-edge', V.edge); st.setProperty('--rib', V.rib[1]); st.setProperty('--fol-board', V.cover[1]);
+      // the endpaper: the paper tinted from the binding's lighter tone
+      st.setProperty('--fol-endp', F.endp(V.paper, V.cover[0]));
       this.el.classList.toggle('dark', dark);
       const lt = o.light, r = this.el.getBoundingClientRect();
       if (lt && r.width) {
@@ -5463,7 +5886,7 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
       this.opening = null;
       if (!g || reduceMotion || !this.segs.length) return;
       // one page: the cover hinges on the spine at the page's left and, past upright, fades as it leaves the book
-      const V = SUPPORTS.folio.variant(amb.key, o.bg, o.fg), D = SUPPORTS.folio.dims(Math.min(amb.W, amb.H)), one = !g.spread;
+      const V = SUPPORTS.folio.lit(SUPPORTS.folio.variant(amb.key, o.bg, o.fg), o), D = SUPPORTS.folio.dims(Math.min(amb.W, amb.H)), one = !g.spread;
       const ext = { t: D.wt + D.cv, s: D.T + D.cv }, hx = one ? -D.sp : g.pw, cw = g.pw + ext.s + (one ? D.sp : 0), chh = g.ph + 2 * ext.t;
       const cv = this.cover;
       cv.replaceChildren(); cv.hidden = false;
@@ -5474,7 +5897,7 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
       const can = document.createElement('canvas'), d = Math.min(devicePixelRatio || 1, 2);
       can.width = Math.round(cw * d); can.height = Math.round(chh * d);
       const c = can.getContext('2d'); c.scale(d, d);
-      SUPPORTS.folio.boards(c, V, 0, 0, cw, chh, mulberry(9), false);
+      SUPPORTS.folio.boards(c, V, 0, 0, cw, chh, mulberry(9), false, true);
       const hg = c.createLinearGradient(0, 0, cw * 0.12, 0); hg.addColorStop(0, 'rgba(0,0,0,.5)'); hg.addColorStop(0.35, 'rgba(255,230,190,.1)'); hg.addColorStop(1, 'rgba(0,0,0,0)');
       c.fillStyle = hg; c.fillRect(0, 0, cw * 0.12, chh);
       const gilt = V.gilt || '216,190,140';
@@ -5628,33 +6051,20 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
   Object.assign(BO, S.bubble || {});
   if (BO.bg === 'none') BO.bg = 'clear'; // (the first panel's « Aucun »)
   for (const k of ['warp', 'reach', 'w']) { delete BO[k]; if (S.bubble) delete S.bubble[k]; } // (the lens, the old blur's reach, the width as a share of the window: gone)
+  // What the panel no longer shows takes the values chosen once and for all (bubble.defaults); its width is the measure's.
+  for (const k of ['cols', 'round', 'float', 'start', 'end', 'ease', 'halo', 'lobes', 'irr', 'img', 'iscale', 'fade', 'op', 'hold', 'rim', 'fray', 'col']) { BO[k] = bubble.defaults[k]; if (S.bubble) delete S.bubble[k]; }
+  if (BO.bg === 'color') { BO.bg = 'glass'; if (S.bubble) S.bubble.bg = 'glass'; } // (no colour of its own any more: the bubble is clear)
   bubble.lost = () => { if (bubUI.on()) { amb.drawSupport(); bubUI.motion(); } }; // the GPU let go: painted in 2D from then on
-  const BUB_BG = { clear: 'Transparent', glass: 'Dépoli', color: 'Couleur' }, BUB_EDGE = { glass: 'Verre', portail: 'Portail' };
+  const BUB_BG = { clear: 'Transparent', glass: 'Dépoli' }, BUB_EDGE = { glass: 'Verre', portail: 'Portail' };
   const pct = (v) => Math.round(v * 100) + ' %', or0 = (f, z) => (v) => (v > 0 ? f(v) : z);
   const BUB_SL = [ // input, setting, what it shows, what it changes: the painting, the layout, the motion
     ['bubVeil', 'veil', pct, 'paint'],
-    ['bubRound', 'round', (v) => (v < 2.3 ? 'ovale' : v < 3.4 ? 'galet' : v < 4.8 ? 'arrondie' : 'carrée'), 'layout'],
-    ['bubW', 'cols', (v) => Math.round(v) + ' signes', 'layout'],
-    ['bubH', 'h', pct, 'layout'],
-    ['bubFloat', 'float', or0(pct, 'immobile'), 'motion'],
     ['bubBlur', 'blur', or0((v) => '× ' + v.toFixed(2), 'aucun'), 'paint'],
-    ['bubStart', 'start', (v) => (Math.abs(v - 1) < 0.01 ? 'au bord' : v.toFixed(2) + ' r'), 'paint'],
-    ['bubEnd', 'end', or0((v) => v.toFixed(2) + ' r', 'au centre'), 'paint'],
-    ['bubEase', 'ease', (v) => (v < 0.85 ? 'précoce ' : v <= 1.2 ? 'régulière ' : 'tardive ') + v.toFixed(1), 'paint'],
-    ['bubHalo', 'halo', or0((v) => v.toFixed(2) + ' r', 'aucun'), 'paint'],
     ['bubAmp', 'amp', or0(pct, 'aucune'), 'paint'],
-    ['bubLobes', 'lobes', (v) => v + ' lobes', 'paint'],
-    ['bubIrr', 'irr', pct, 'paint'],
     ['bubSpeed', 'speed', or0((v) => '× ' + v.toFixed(2), 'figée'), 'motion'],
-    ['bubImg', 'img', or0(pct, 'aucune'), 'paint'],
-    ['bubIscale', 'iscale', (v) => '× ' + v.toFixed(2), 'paint'],
-    ['bubFade', 'fade', (v) => v.toFixed(2) + ' r', 'paint'],
-    ['bubOp', 'op', pct, 'paint'],
-    ['bubHold', 'hold', or0(pct, 'aucune'), 'paint'],
-    ['bubRim', 'rim', or0(pct, 'aucun'), 'paint'],
     ['bubSpark', 'spark', or0(pct, 'aucune'), 'paint motion'],
-    ['bubFray', 'fray', or0(pct, 'aucun'), 'paint'],
   ];
+
   const bubUI = {
     key: '', mkey: '', mf: 0, mv: 0, mt: 0, ft: 0, due: 0, raf: 0, todo: new Set(), applied: false,
     on: () => !!(amb.on && amb.sup === 'bubble'),
@@ -5709,7 +6119,7 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
       const f = reduceMotion ? 0 : Math.max(0, +BO.float || 0), v = reduceMotion || !bubble.glOn ? 0 : Math.max(0, +BO.speed || 0);
       const sk = !reduceMotion && BO.edge === 'portail' && +BO.spark > 0; // (Portail twinkles whatever the speed)
       supC.style.transformOrigin = bubGlC.style.transformOrigin = bubSpW.style.transformOrigin = this.centre();
-      const key = this.on() && (f > 0 || v > 0 || sk) ? f.toFixed(2) + ' ' + v.toFixed(2) + (sk ? ' p' : '') : '';
+      const key = this.on() && !bookIsAway() && (f > 0 || v > 0 || sk) ? f.toFixed(2) + ' ' + v.toFixed(2) + (sk ? ' p' : '') : '';
       if (key === this.mkey) return;
       this.still(); Object.assign(this, { mkey: key, mf: f, mv: v, ms: sk, mt: 0, ft: 0, due: 0 });
     },
@@ -5742,14 +6152,9 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
       const pt = BO.edge === 'portail'; // (Portail's own settings show with it; it has its own line of light)
       for (const b of $('bubEdgePick').children) b.setAttribute('aria-checked', String(b.dataset.v === (pt ? 'portail' : 'glass')));
       for (const r of document.querySelectorAll('#bubOpts .bub-pt')) r.hidden = !pt;
-      $('bubRim').closest('.row').classList.toggle('off', pt);
-      $('bubColRow').hidden = BO.bg !== 'color';
-      $('bubVeilRow').classList.toggle('off', BO.bg === 'clear');
-      $('bubCol').value = BO.col;
+      $('bubVeilRow').hidden = BO.bg === 'clear';
       const tint = String(BO.ptint || bubble.defaults.ptint).toLowerCase(), auto = tint === 'meteo' || tint === 'scene';
       for (const b of $('bubTintAuto').children) b.setAttribute('aria-checked', String(b.dataset.v === tint));
-      for (const b of $('bubTintPick').children) b.setAttribute('aria-checked', String(!auto && b.dataset.v === tint));
-      $('bubTint').value = auto ? bubble.tintNow() : tint; // (in an automatic mode: the colour it has found)
       const z = this.size();
       for (const [id, k, show] of BUB_SL) {
         const v = k === 'cols' ? BO.cols || z.cols : k === 'h' ? BO.h || z.h : k === 'round' ? BO.round || z.n : +BO[k];
@@ -5787,17 +6192,6 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
     b.addEventListener('click', () => bubUI.set('edge', v, 'paint motion'));
     $('bubEdgePick').append(b);
   }
-  $('bubCol').addEventListener('input', (e) => { bubUI.set('col', e.target.value, 'paint'); amb.integrate(); });
-  // Portail's halo: a few colours at hand, or any other.
-  const BUB_TINTS = { '#a387ff': 'Violet', '#7fb2ff': 'Bleu', '#6fe0cf': 'Turquoise', '#9be37f': 'Vert', '#ffc56b': 'Or', '#ff8f6b': 'Braise', '#ff8fc4': 'Rose', '#f4f1ec': 'Blanc' };
-  for (const [v, label] of Object.entries(BUB_TINTS)) {
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'sw'; b.dataset.v = v; b.style.background = v; b.title = label;
-    b.setAttribute('role', 'radio'); b.setAttribute('aria-label', label);
-    b.addEventListener('click', () => bubUI.set('ptint', v, 'paint'));
-    $('bubTintPick').append(b);
-  }
-  $('bubTint').addEventListener('input', (e) => bubUI.set('ptint', e.target.value.toLowerCase(), 'paint'));
   // or found by itself: the sky's accent as the day goes (« Couleur météo »), or the scene's most present colour
   const BUB_TINT_AUTO = { meteo: 'Couleur météo', scene: 'Couleur de la scène' };
   for (const [v, label] of Object.entries(BUB_TINT_AUTO)) {
@@ -6334,6 +6728,15 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
       const end = !folio.on && reader.scrollTop > 0 && reader.scrollTop + reader.clientHeight >= reader.scrollHeight - 2; // (scrolled to the very end: read)
       e.pct = end ? 1 : +pr.toFixed(4); if (e.pct > 0.001 || e.read) e.read = t; e.ch = chapterOf(curBlock) || ''; this.save();
     },
+    // The lamp's breathing runs while someone is at the table, and holds after 40 s without a gesture there (.rest). A
+    // gesture takes it up again from where it stopped, so nothing jumps. (Pointer moves come often: once a second is enough.)
+    stirT: 0, stirAt: -1e9,
+    stir() {
+      const L = $('lib'), now = performance.now();
+      if (now - this.stirAt < 1000 && !L.classList.contains('rest')) return;
+      this.stirAt = now; L.classList.remove('rest'); clearTimeout(this.stirT);
+      this.stirT = setTimeout(() => { if (this.shown) L.classList.add('rest'); }, 40000);
+    },
     show(fromReading) {
       if (this.shown || fly.busy) return;
       if (fromReading && book) updatePos(); // (the place as it is now; nothing is written while the shelf is up)
@@ -6343,7 +6746,7 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
       drawer('toc', false);
       if (!this.pend) $('toast').hidden = true;
       document.body.classList.add('lib-on');
-      $('lib').hidden = false; document.querySelector('.app').inert = true;
+      $('lib').hidden = false; this.stirAt = -1e9; this.stir(); document.querySelector('.app').inert = true;
       try { const s = getSelection(); if (s && !s.isCollapsed) s.removeAllRanges(); } catch {}
       this.draw(); this.still();
       const el = book && this.navEl(book.id);
@@ -6756,6 +7159,12 @@ body:not(.amb) .toast .btn.sm { font: 600 13.5px/1 var(--f-book); border-radius:
   let libRz = 0;
   addEventListener('resize', () => { if (lib.menuEl) lib.closeMenu(false); clearTimeout(libRz); libRz = setTimeout(() => { if (lib.shown && !fly.busy) { lib.draw(); lib.still(); } }, 120); });
   addEventListener('pagehide', () => lib.commit());
+  // (A pointer that has not moved does not count: the browser sends such moves itself when something changes under it.)
+  let libPX = -1, libPY = -1;
+  for (const t of ['pointermove', 'pointerdown', 'keydown', 'wheel']) $('lib').addEventListener(t, (e) => {
+    if (e.type === 'pointermove') { if (e.clientX === libPX && e.clientY === libPY) return; libPX = e.clientX; libPY = e.clientY; }
+    if (lib.shown) lib.stir();
+  }, { passive: true, capture: true });
   $('libBtn').addEventListener('click', () => lib.show(true));
   $('libAddBtn').addEventListener('click', () => { if (!fly.busy) $('file').click(); });
   $('libBack').addEventListener('click', () => lib.resume());

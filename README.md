@@ -1,11 +1,20 @@
 # Liseuse à la lampe
 
+![Le lac au coucher du soleil](site/img/heure-lake-sunset.webp)
+
 Une liseuse qui tient dans une seule page. Ton livre s'ouvre dans une scène peinte qui suit l'heure et le temps : un coin lecture sous la lampe, une cheminée, une forêt, un lac sous la neige, une chambre japonaise, Paris… Chaque scène a son propre son, et le texte se pose sur une feuille, un chevalet, un cadre, un livre relié ou une bulle.
 
 - **Formats** : PDF, ePub, Word, OpenDocument, RTF, texte, Markdown, HTML, FB2, Kindle sans DRM, et les pages scannées ou photographiées (reconnaissance de texte dans l'appli).
 - **Bibliothèque** : tes livres sur une table en bois, avec ta page et tes notes pour chacun.
 - **Surlignages et notes**, exportables en Markdown.
 - **Rien ne sort de ton ordinateur** : tes livres, tes notes et tes réglages restent sur ta machine. Les polices sont dans l'appli, qui ne télécharge rien. Une seule exception : la reconnaissance de texte des pages scannées télécharge son moteur la première fois.
+
+## Quelques scènes
+
+| | |
+|:---:|:---:|
+| ![Le coin lecture](site/img/scene-nook-s.webp)<br>Le coin lecture | ![La forêt](site/img/scene-forest-s.webp)<br>La forêt |
+| ![La chambre japonaise](site/img/scene-washitsu-s.webp)<br>La chambre japonaise | ![Paris](site/img/scene-paris-s.webp)<br>Paris |
 
 ## Lire en ligne ou télécharger
 

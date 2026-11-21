@@ -26,59 +26,141 @@
   const PRESET = { nook: 'book', hearth: 'frame', forest: 'frame', lake: 'easel', snow: 'book', fuji: 'easel', alpes: 'frame', lines: 'screen', topo: 'screen', halo: 'screen', dots: 'screen', dust: 'screen', image: 'frame' };
 
   /* support:easel:start */
-  // Chevalet de campagne vu de face. Toile apprêtée tendue sur châssis (tranche visible côté lumière), mât avec pince haute,
-  // deux pieds avant à peine écartés, pied arrière entrevu, tablette sous la toile. Le bois change avec la scène.
+  // Field easel seen from the front: a primed canvas stretched on its frame (the side turned to the light shows, tacked),
+  // a mast with a clamp at the top, two front legs opening slightly as they come down, the back leg glimpsed, and a tray
+  // under the canvas, with a lip, where two brushes and a tube of paint lie. The wood changes with the scene. At night the
+  // easel takes the dark of the scene (the wood much more than the canvas, which holds the text), and the edges turned to
+  // the scene's light (the sun, the moon, a lamp) catch its colour.
   const EASEL_WOOD = {
-    weathered: { sh: [66, 62, 72], md: [148, 134, 112], lt: [204, 188, 158] }, // bois blanchi du lac
-    indoor: { sh: [46, 29, 19], md: [106, 68, 41], lt: [166, 114, 68] }, // hêtre/noyer chaud
-    natural: { sh: [170, 132, 92], md: [214, 178, 130], lt: [240, 214, 172] }, // bois clair
+    weathered: { sh: [76, 64, 54], md: [152, 134, 110], lt: [210, 194, 164] }, // the lake's wood, silvered by the weather
+    indoor: { sh: [46, 29, 19], md: [106, 68, 41], lt: [166, 114, 68] }, // warm beech and walnut
+    natural: { sh: [158, 116, 74], md: [208, 168, 118], lt: [238, 210, 166] }, // light oiled beech
   };
-  const EASEL_METAL = { sh: [56, 44, 30], md: [128, 104, 64], lt: [214, 184, 128] };
-  const EASEL_DIR = { lake: 1 }; // sens de la lumière quand la scène n'en donne pas (aperçus)
+  const EASEL_METAL = { sh: [56, 44, 30], md: [128, 104, 64], lt: [214, 184, 128] }; // brass
+  const EASEL_DIR = { lake: 1 }; // where the light comes from when the scene gives none (the previews)
   const easelKind = (s) => s === 'lake' ? 'weathered' : s === 'nook' || s === 'hearth' || s === 'forest' || s === 'snow' || s === 'washitsu' ? 'indoor' : 'natural';
   const easelRGB = (a, al = 1) => `rgba(${a[0] | 0},${a[1] | 0},${a[2] | 0},${al})`;
   const easelMix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
   const easelLin = (c, x0, y0, x1, y1, st) => { const g = c.createLinearGradient(x0, y0, x1, y1); for (const s of st) g.addColorStop(s[0], s[1]); return g; };
-  // A tapered bar of wood from (x0, y0) down to (x1, y1): shaded across, a warm rim on the lit edge, a few strokes of grain.
+  // How dark the scene is behind the easel, from the average colour under the text: 0 by day, 1 deep in the night.
+  // (Read beside the easel in the captures: about 0.45 to 0.62 by day, 0.38 to 0.5 under the rain, 0.25 in a lit room or a
+  // lit street at night, 0.16 in an open night.)
+  const easelNight = (un) => (un ? Math.max(0, Math.min(1, (0.44 - (0.2126 * un[0] + 0.7152 * un[1] + 0.0722 * un[2])) / 0.2)) : 0);
+  // A colour as the night takes it: darker, and tinted by the scene's own dark (ua, 0..255). n says how dark the scene is,
+  // k how much this material gives in to it.
+  const easelDark = (a, n, ua, k) => {
+    const t = n * k;
+    return [a[0] + (a[0] * 0.4 + ua[0] * 0.18 - a[0]) * t, a[1] + (a[1] * 0.43 + ua[1] * 0.21 - a[1]) * t, a[2] + (a[2] * 0.46 + ua[2] * 0.25 - a[2]) * t];
+  };
+  // A tapered bar of wood from (x0, y0) down to (x1, y1). Across it: the front face rounding off into the shade, an eased
+  // arris catching the light, the narrow side face turned to it; a rim of the light's colour on the lit edge, a dark
+  // hairline on the other; and the grain, long fine lines that drift a little along the bar.
   function easelBar(c, x0, y0, x1, y1, w0, w1, P, dir, rim, R, grainN) {
     const dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy) || 1, nx = dy / len, ny = -dx / len;
     const ax = x0 - nx * w0 / 2, ay = y0 - ny * w0 / 2, bx = x0 + nx * w0 / 2, by = y0 + ny * w0 / 2;
     const cx = x1 + nx * w1 / 2, cy = y1 + ny * w1 / 2, ex = x1 - nx * w1 / 2, ey = y1 - ny * w1 / 2;
-    const mx = (x0 + x1) / 2, my = (y0 + y1) / 2, mw = (w0 + w1) / 2;
-    const fr0 = easelRGB(easelMix(P.sh, P.md, 0.6)), fr1 = easelRGB(P.md), sd = easelRGB(easelMix(P.lt, rim.split(',').map(Number), 0.22)), sd1 = easelRGB(easelMix(P.lt, rim.split(',').map(Number), 0.4));
-    const st = dir > 0 ? [[0, fr0], [0.75, fr1], [0.751, sd], [1, sd1]] : [[0, sd1], [0.249, sd], [0.25, fr1], [1, fr0]]; // front face + the side face turned toward the light
+    const mx = (x0 + x1) / 2, my = (y0 + y1) / 2, mw = (w0 + w1) / 2, rc = rim.split(',').map(Number);
+    // a point at s (0..1) along the bar and t (-0.5..0.5) across it, toward the lit side when t > 0
+    const at = (s, t) => { const q = t * dir * (w0 + (w1 - w0) * s); return [x0 + dx * s + nx * q, y0 + dy * s + ny * q]; };
+    const st = [[0, easelMix(P.sh, P.md, 0.42)], [0.12, easelMix(P.sh, P.md, 0.8)], [0.45, P.md], [0.72, easelMix(P.md, P.lt, 0.32)],
+      [0.75, easelMix(P.lt, rc, 0.3)], [0.785, easelMix(P.lt, rc, 0.12)], [1, easelMix(easelMix(P.md, P.lt, 0.72), rc, 0.2)]];
     c.save();
     c.beginPath(); c.moveTo(ax, ay); c.lineTo(bx, by); c.lineTo(cx, cy); c.lineTo(ex, ey); c.closePath();
-    c.fillStyle = easelLin(c, mx - nx * mw / 2, my - ny * mw / 2, mx + nx * mw / 2, my + ny * mw / 2, st); c.fill();
+    const g = c.createLinearGradient(mx - nx * dir * mw / 2, my - ny * dir * mw / 2, mx + nx * dir * mw / 2, my + ny * dir * mw / 2);
+    for (const s of st) g.addColorStop(s[0], easelRGB(s[1]));
+    c.fillStyle = g; c.fill();
     c.clip();
-    if (grainN) { // grain: short broken strokes along the bar
+    if (grainN) { // the grain: a few broad soft bands of figure, then long, fine, a little wavy lines, darker mostly
       for (let i = 0; i < grainN; i++) {
-        const t = R() - 0.5, s0 = R() * 0.7, s1 = Math.min(1, s0 + 0.12 + R() * 0.4), dark = R() < 0.7;
-        const ox0 = nx * t * w0, oy0 = ny * t * w0, ox1 = nx * t * w1, oy1 = ny * t * w1;
-        c.strokeStyle = dark ? `rgba(30,18,8,${0.05 + R() * 0.08})` : `rgba(255,240,215,${0.04 + R() * 0.05})`; c.lineWidth = 0.6 + R() * 0.7;
-        c.beginPath(); c.moveTo(x0 + dx * s0 + ox0 + (ox1 - ox0) * s0, y0 + dy * s0 + oy0 + (oy1 - oy0) * s0);
-        c.lineTo(x0 + dx * s1 + ox0 + (ox1 - ox0) * s1, y0 + dy * s1 + oy0 + (oy1 - oy0) * s1); c.stroke();
+        const band = i < grainN / 5, t0 = (R() - 0.5) * 0.92, t1 = t0 + (R() - 0.5) * 0.2, s0 = R() * 0.4, s1 = Math.min(1, s0 + 0.35 + R() * 0.65), dark = band || R() < 0.72;
+        const p0 = at(s0, t0), p1 = at(s1, t1), pm = at((s0 + s1) / 2, (t0 + t1) / 2 + (R() - 0.5) * 0.12);
+        c.strokeStyle = dark ? `rgba(34,20,8,${(band ? 0.03 + R() * 0.03 : 0.07 + R() * 0.11).toFixed(3)})` : `rgba(255,242,218,${(0.04 + R() * 0.06).toFixed(3)})`;
+        c.lineWidth = band ? mw * (0.12 + R() * 0.16) : 0.45 + R() * 0.65;
+        c.beginPath(); c.moveTo(p0[0], p0[1]); c.quadraticCurveTo(pm[0], pm[1], p1[0], p1[1]); c.stroke();
       }
     }
-    // rim on the lit edge, a dark hairline on the other
+    // the arris: a fine light line where the front face turns into the side
+    const q0 = at(0, 0.25), q1 = at(1, 0.25);
+    c.lineWidth = Math.max(0.6, mw * 0.05); c.strokeStyle = `rgba(${rim},.3)`; c.beginPath(); c.moveTo(q0[0], q0[1]); c.lineTo(q1[0], q1[1]); c.stroke();
+    // the rim on the lit edge, a dark hairline on the other
     const lx0 = dir > 0 ? bx : ax, ly0 = dir > 0 ? by : ay, lx1 = dir > 0 ? cx : ex, ly1 = dir > 0 ? cy : ey;
     const kx0 = dir > 0 ? ax : bx, ky0 = dir > 0 ? ay : by, kx1 = dir > 0 ? ex : cx, ky1 = dir > 0 ? ey : cy;
-    c.lineWidth = Math.max(1.2, mw * 0.12); c.strokeStyle = `rgba(${rim},.6)`; c.beginPath(); c.moveTo(lx0, ly0); c.lineTo(lx1, ly1); c.stroke();
-    c.lineWidth = Math.max(1, mw * 0.12); c.strokeStyle = 'rgba(8,4,2,.28)'; c.beginPath(); c.moveTo(kx0, ky0); c.lineTo(kx1, ky1); c.stroke();
+    c.lineWidth = Math.max(1.1, mw * 0.1); c.strokeStyle = `rgba(${rim},.5)`; c.beginPath(); c.moveTo(lx0, ly0); c.lineTo(lx1, ly1); c.stroke();
+    c.lineWidth = Math.max(1, mw * 0.12); c.strokeStyle = 'rgba(8,4,2,.3)'; c.beginPath(); c.moveTo(kx0, ky0); c.lineTo(kx1, ky1); c.stroke();
     c.restore();
   }
-  // A brush lying on the tray: wooden handle, metal ferrule, a tip of bristles charged with paint.
-  function easelBrush(c, x, y, len, th, slope, flip, tip, P) {
+  // A brass thumbscrew seen from the front: its milled rim, a domed face lit from the light's side, a small cast shadow.
+  function easelKnob(c, x, y, r, dir, M, rim) {
+    const rc = rim.split(',').map(Number);
+    c.fillStyle = 'rgba(16,8,2,.3)'; c.beginPath(); c.arc(x - dir * r * 0.22, y + r * 0.32, r * 1.06, 0, TAU); c.fill();
+    c.fillStyle = easelLin(c, x - dir * r, y - r, x + dir * r, y + r, [[0, easelRGB(easelMix(M.md, M.sh, 0.4))], [1, easelRGB(M.sh)]]);
+    c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill();
+    const g = c.createRadialGradient(x + dir * r * 0.3, y - r * 0.36, r * 0.06, x, y, r * 0.84);
+    g.addColorStop(0, easelRGB(easelMix(M.lt, rc, 0.45))); g.addColorStop(0.5, easelRGB(easelMix(M.md, M.lt, 0.55))); g.addColorStop(1, easelRGB(easelMix(M.md, M.sh, 0.5)));
+    c.fillStyle = g; c.beginPath(); c.arc(x, y, r * 0.8, 0, TAU); c.fill();
+    c.strokeStyle = 'rgba(255,236,196,.22)'; c.lineWidth = 0.6; c.beginPath(); c.arc(x, y, r * 0.9, -Math.PI * 0.95, -Math.PI * 0.05); c.stroke();
+  }
+  // A brush lying on the tray, seen from above: a lacquered handle swelling a little toward the ferrule, the ferrule with its
+  // crimp, the bristles still charged with paint at the tip, and its soft shadow on the wood.
+  function easelBrush(c, x, y, len, th, slope, flip, tip, lac, nd) {
     c.save(); c.translate(x, y); c.rotate(slope); if (flip) c.scale(-1, 1);
-    const hl = len * 0.66, fl = len * 0.2, bl = len * 0.14;
-    c.fillStyle = easelRGB(easelMix(P.sh, [28, 18, 12], 0.6)); // handle, tapering to a thin end
-    c.beginPath(); c.moveTo(0, -th * 0.28); c.lineTo(hl, -th * 0.5); c.lineTo(hl, th * 0.5); c.lineTo(0, th * 0.28); c.closePath(); c.fill();
-    c.fillStyle = 'rgba(255,230,190,.22)'; c.fillRect(th, -th * 0.34, hl - th * 1.4, th * 0.2);
-    c.fillStyle = '#9a9ca2'; c.fillRect(hl, -th * 0.55, fl, th * 1.1);
-    c.fillStyle = 'rgba(255,255,255,.35)'; c.fillRect(hl, -th * 0.55, fl, th * 0.28);
-    c.fillStyle = easelRGB(tip); c.beginPath(); c.moveTo(hl + fl, -th * 0.5); c.quadraticCurveTo(hl + fl + bl * 0.8, -th * 0.5, hl + fl + bl, 0);
-    c.quadraticCurveTo(hl + fl + bl * 0.8, th * 0.5, hl + fl, th * 0.5); c.closePath(); c.fill();
+    const hl = len * 0.62, fl = len * 0.15, bl = len * 0.2, hf = nd(lac), tp = nd(tip), r0 = th * 0.2;
+    c.fillStyle = 'rgba(20,10,4,.18)'; c.beginPath(); c.ellipse(len * 0.5, th * 0.62, len * 0.5, th * 0.32, 0, 0, TAU); c.fill();
+    c.fillStyle = easelLin(c, 0, -th * 0.5, 0, th * 0.5, [[0, easelRGB(easelMix(hf, [255, 244, 228], 0.34))], [0.38, easelRGB(hf)], [1, easelRGB(easelMix(hf, [0, 0, 0], 0.5))]]);
+    c.beginPath(); c.moveTo(r0, -r0); c.quadraticCurveTo(hl * 0.6, -th * 0.56, hl, -th * 0.46); c.lineTo(hl, th * 0.46);
+    c.quadraticCurveTo(hl * 0.6, th * 0.56, r0, r0); c.quadraticCurveTo(-r0 * 0.8, 0, r0, -r0); c.closePath(); c.fill();
+    const sv = nd([200, 198, 192]);
+    c.fillStyle = easelLin(c, 0, -th * 0.5, 0, th * 0.5, [[0, easelRGB(easelMix(sv, [255, 255, 255], 0.6))], [0.3, easelRGB(sv)], [0.75, easelRGB(easelMix(sv, [0, 0, 0], 0.38))], [1, easelRGB(easelMix(sv, [0, 0, 0], 0.6))]]);
+    c.beginPath(); c.moveTo(hl, -th * 0.5); c.lineTo(hl + fl, -th * 0.42); c.lineTo(hl + fl, th * 0.42); c.lineTo(hl, th * 0.5); c.closePath(); c.fill();
+    c.fillStyle = 'rgba(30,26,22,.35)'; c.fillRect(hl + fl * 0.32, -th * 0.47, Math.max(0.6, fl * 0.08), th * 0.94); // the crimp
+    const bt = nd([196, 170, 128]);
+    c.fillStyle = easelLin(c, hl + fl, 0, hl + fl + bl, 0, [[0, easelRGB(bt)], [0.45, easelRGB(easelMix(bt, tp, 0.7))], [1, easelRGB(easelMix(tp, [0, 0, 0], 0.15))]]);
+    c.beginPath(); c.moveTo(hl + fl, -th * 0.42); c.quadraticCurveTo(hl + fl + bl * 0.7, -th * 0.46, hl + fl + bl, 0); c.quadraticCurveTo(hl + fl + bl * 0.7, th * 0.46, hl + fl, th * 0.42); c.closePath(); c.fill();
+    c.fillStyle = 'rgba(255,248,232,.28)'; c.fillRect(hl + fl + bl * 0.15, -th * 0.28, bl * 0.5, Math.max(0.5, th * 0.12)); // the paint's wet sheen
     c.restore();
+  }
+  // A tube of oil paint lying on the tray: the crimped end, the soft aluminium body with its coloured band, the shoulder and
+  // the ribbed cap.
+  function easelTube(c, x, y, len, th, flip, band, nd) {
+    c.save(); c.translate(x, y); if (flip) c.scale(-1, 1);
+    const vg = (a) => easelLin(c, 0, -th / 2, 0, th / 2, [[0, easelRGB(easelMix(a, [255, 255, 255], 0.45))], [0.35, easelRGB(a)], [1, easelRGB(easelMix(a, [0, 0, 0], 0.48))]]);
+    const al = nd([206, 203, 196]), bd = nd(band), cp = nd([44, 40, 36]);
+    c.fillStyle = 'rgba(20,10,4,.2)'; c.beginPath(); c.ellipse(len * 0.5, th * 0.52, len * 0.52, th * 0.3, 0, 0, TAU); c.fill();
+    c.fillStyle = vg(al); c.fillRect(0, -th * 0.54, len * 0.08, th * 1.08); // the crimp
+    c.fillStyle = 'rgba(70,66,60,.4)'; for (let i = 1; i < 3; i++) c.fillRect(len * 0.026 * i, -th * 0.5, 0.6, th);
+    c.fillStyle = vg(al); c.beginPath(); c.moveTo(len * 0.08, -th * 0.5); c.lineTo(len * 0.78, -th * 0.44); c.lineTo(len * 0.78, th * 0.44); c.lineTo(len * 0.08, th * 0.5); c.closePath(); c.fill();
+    c.fillStyle = vg(bd); c.beginPath(); c.moveTo(len * 0.3, -th * 0.48); c.lineTo(len * 0.62, -th * 0.46); c.lineTo(len * 0.62, th * 0.46); c.lineTo(len * 0.3, th * 0.48); c.closePath(); c.fill();
+    c.fillStyle = vg(al); c.beginPath(); c.moveTo(len * 0.78, -th * 0.44); c.lineTo(len * 0.85, -th * 0.22); c.lineTo(len * 0.85, th * 0.22); c.lineTo(len * 0.78, th * 0.44); c.closePath(); c.fill();
+    c.fillStyle = vg(cp); c.fillRect(len * 0.85, -th * 0.27, len * 0.15, th * 0.54); // the cap
+    c.fillStyle = 'rgba(255,255,255,.12)'; for (let i = 1; i < 4; i++) c.fillRect(len * (0.85 + 0.037 * i), -th * 0.27, 0.6, th * 0.54);
+    c.restore();
+  }
+  // The tiles below draw from their own seeded generator, so that the first painting and the next ones (which find the
+  // tiles made) draw the same grain, tacks and strokes from the painting's own random.
+  const easelRand = (s) => () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296);
+  // A tile of primed linen (128 points square, made at the canvas's density): threads about 1.5 points apart, over and under
+  // in turn, each a little thicker or thinner than the next, the gaps between them a hair darker, a few slubs. Dark threads
+  // for a light priming, light ones for a dark one. Faint: it should be felt rather than seen.
+  function easelLinen(k, dark) {
+    const n = 128, N = Math.max(64, Math.round(n * k)), tile = document.createElement('canvas'); tile.width = tile.height = N; tile.k = k;
+    const g = tile.getContext('2d'), id = g.createImageData(N, N), D = id.data, R = easelRand(dark ? 7 : 11);
+    const p = Math.max(2, Math.round(1.5 * k)), T = Math.ceil(N / p), row = new Float32Array(T), col = new Float32Array(T);
+    for (let i = 0; i < T; i++) { row[i] = 0.78 + 0.22 * R(); col[i] = 0.78 + 0.22 * R(); } // (no thread much darker than the next: no lines)
+    const [r, gg, bb] = dark ? [60, 44, 26] : [255, 246, 228], A = dark ? 0.03 : 0.024;
+    for (let y = 0; y < N; y++) {
+      const ty = (y / p) | 0, fy = Math.abs(2 * (y % p) / (p - 1 || 1) - 1);
+      for (let x = 0; x < N; x++) {
+        const tx = (x / p) | 0, fx = Math.abs(2 * (x % p) / (p - 1 || 1) - 1), over = (tx + ty) & 1; // which thread is on top at this crossing
+        const v = over ? row[ty] * (0.5 + 0.5 * fy) : col[tx] * (0.5 + 0.5 * fx), j = (y * N + x) * 4;
+        D[j] = r; D[j + 1] = gg; D[j + 2] = bb; D[j + 3] = Math.round(255 * A * (0.6 * v + 0.5 * R()));
+      }
+    }
+    for (let i = 0; i < 30; i++) { // slubs: a thread a little thicker for a short run
+      const hz = R() < 0.6, at = ((R() * T) | 0) * p, s = (R() * N) | 0, l = (2 + R() * 5) * k, add = Math.round(255 * A * (0.25 + R() * 0.3));
+      for (let q = 0; q < l; q++) { const x = hz ? (s + q) % N : at, y = hz ? at : (s + q) % N, j = (y * N + x) * 4 + 3; D[j] = Math.min(255, D[j] + add); }
+    }
+    g.putImageData(id, 0, 0);
+    return tile;
   }
   let easelWeave = null, easelWeaveL = null, easelNoise = null;
   SUPPORTS.easel = {
@@ -86,21 +168,28 @@
     box: (W, H, u) => ({ top: Math.max(H * 0.1, Math.min(58, H * 0.17)), bottom: H * 0.19, side: u * 0.04 }),
     edge: (u) => ({ t: 0, r: Math.max(6, u * 0.026) + Math.max(5, u * 0.0135), b: Math.max(7, u * 0.016) + Math.max(9, u * 0.0165), l: Math.max(6, u * 0.026) }),
     draw(c, S, W, H, o) {
-      const mini = o.mini, u = o.u, R = o.R, L = o.light, cx = S.x + S.w / 2, yb = S.y + S.h;
+      // the scene's main light, unless it is out (a lamp that stays off by day lends neither its side nor its colour)
+      const mini = o.mini, u = o.u, R = o.R, L = o.light && o.light.a > 0.04 ? o.light : null, cx = S.x + S.w / 2, yb = S.y + S.h;
       const k = (c.getTransform && c.getTransform().a) || 1, kind = easelKind(o.scene);
       const dir = L ? (L.x >= cx ? 1 : -1) : (EASEL_DIR[o.scene] || -1);
-      const base = EASEL_WOOD[kind], ua = o.under ? [o.under[0] * 255, o.under[1] * 255, o.under[2] * 255] : null;
-      const P = ua ? { sh: easelMix(base.sh, ua, 0.22), md: easelMix(base.md, ua, 0.08), lt: base.lt } : base;
+      const ua = o.under ? [o.under[0] * 255, o.under[1] * 255, o.under[2] * 255] : null, nk = easelNight(o.under), dk = ua || [14, 16, 30];
+      const nd = (a, kk = 0.8) => (nk > 0 ? easelDark(a, nk, dk, kk) : a); // the night on a material (kk: how much it gives in)
+      const W0 = EASEL_WOOD[kind], base = { sh: nd(W0.sh, 0.66), md: nd(W0.md), lt: nd(W0.lt) };
+      const P = ua ? { sh: easelMix(base.sh, ua, 0.14), md: easelMix(base.md, ua, 0.05), lt: base.lt } : base; // the shade takes a little of the scene's colour
       const Pb = { sh: easelMix(P.sh, [8, 6, 6], 0.35), md: easelMix(P.md, P.sh, 0.62), lt: easelMix(P.lt, P.sh, 0.58) }; // the back leg, in the shade
-      const rim = o.scene === 'lake' ? '255,196,128' : L ? L.rgb : '255,238,212';
-      const rimTop = L ? L.rgb : '255,244,226';
+      const M = { sh: nd(EASEL_METAL.sh, 0.6), md: nd(EASEL_METAL.md), lt: nd(EASEL_METAL.lt) };
+      // The edges catch the colour of the scene's light; the top ones only when it comes from above (not a lantern low by the water).
+      const rim = L ? L.rgb : o.scene === 'lake' ? '255,196,128' : '255,238,212';
+      const rimTop = L ? L.rgb : '255,244,226', up = !L || L.y < S.y + S.h * 0.3 ? 1 : 0.35;
       // sizes
       const mw = Math.max(mini ? 2.2 : 8, u * 0.0165), lw = Math.max(mini ? 2.2 : 7, u * 0.0195), d = Math.max(mini ? 1.6 : 5, u * 0.0135);
       const tt = Math.max(mini ? 1 : 7, u * 0.016), tf = Math.max(mini ? 1.8 : 9, u * 0.0165);
       const ov = Math.max(mini ? 2.5 : 6, Math.min(u * 0.026, S.x - d - 3));
       const tx0 = S.x - ov - (dir < 0 ? d : 0), tx1 = S.x + S.w + ov + (dir > 0 ? d : 0), ty = yb, tb = ty + tt + tf; // tray: left, right, top of its top face, bottom of its front
-      const mTop = S.y - Math.max(mini ? 3 : 20, S.y * 0.64), mEnd = tb + Math.max(mini ? 3 : 14, u * 0.06);
+      // the mast rises above the canvas in proportion to it (a canvas made small by the grip does not get a long pole)
+      const mTop = S.y - (mini ? Math.max(3, S.y * 0.64) : Math.max(20, Math.min(S.y * 0.64, S.h * 0.1))), mEnd = tb + Math.max(mini ? 3 : 14, u * 0.06);
       const spread = S.w * 0.31, off = (y) => spread * (y - S.y) / (H - S.y);
+      const cw = Math.max(mini ? 4 : 24, mw * 3), ch = Math.max(mini ? 2.4 : 14, u * 0.025); // the clamp
       const gr = mini ? 0 : 1, wood = []; // the rectangles holding wood, for the film grain
 
       /* the shadow the whole easel throws on the scene: very soft, away from the light (blurred small, then scaled up) */
@@ -109,7 +198,8 @@
         const kk = mini ? k : 1; oc.width = Math.ceil(W * q * kk); oc.height = Math.ceil(H * q * kk);
         const g = oc.getContext('2d');
         g.scale(q * kk, q * kk);
-        g.shadowColor = kind === 'natural' ? 'rgba(70,48,28,.26)' : out ? 'rgba(4,6,18,.34)' : 'rgba(6,3,2,.4)';
+        const sc0 = kind === 'natural' ? [70, 48, 28, 0.26] : out ? [4, 6, 18, 0.34] : [6, 3, 2, 0.4], sc = easelMix(sc0, [3, 4, 12], nk);
+        g.shadowColor = easelRGB(sc, (sc0[3] + (0.36 - sc0[3]) * nk).toFixed(3));
         g.shadowBlur = u * (out ? 0.05 : 0.035) * q * kk; g.shadowOffsetX = (OFF - dir * u * 0.016) * q * kk; g.shadowOffsetY = u * 0.012 * q * kk;
         g.translate(-OFF, 0); g.fillStyle = '#000'; g.beginPath();
         g.rect(S.x - 1, S.y - 1, S.w + 2 + d, S.h + 2); g.rect(tx0, ty, tx1 - tx0, tb - ty);
@@ -120,125 +210,171 @@
         c.save(); c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'low'; c.drawImage(oc, rx0 * q * kk, ry0 * q * kk, (rx1 - rx0) * q * kk, (H - ry0) * q * kk, rx0, ry0, rx1 - rx0, H - ry0); c.restore();
       }
 
-      wood.push([cx - mw * 1.5, mTop, mw * 3, S.y - mTop], [cx - mw * 1.5, tb, mw * 3, mEnd - tb + 4], [cx - lw, mEnd, lw * 2, H - mEnd], [tx0 - 1, ty, tx1 - tx0 + 2, tb - ty + u * 0.03], [cx - Math.max(22, mw * 2.5) / 2 - 1, S.y - Math.max(15, u * 0.027), Math.max(22, mw * 2.5) + 2, Math.max(15, u * 0.027) + 7]);
+      wood.push([cx - mw * 1.5, mTop, mw * 3, S.y - mTop], [cx - mw * 1.5, tb, mw * 3, mEnd - tb + 4], [cx - lw, mEnd, lw * 2, H - mEnd], [tx0 - 1, ty, tx1 - tx0 + 2, tb - ty + u * 0.03], [cx - cw / 2 - 1, S.y - ch, cw + 2, ch + 9]);
       for (const sg of [-1, 1]) wood.push([Math.min(cx + sg * off(tb - 8), cx + sg * off(H + 12)) - lw, tb - 8, Math.abs(off(H + 12) - off(tb - 8)) + lw * 2, H - tb + 20]);
 
       /* back leg (in the shade, a hair to the lit side as it recedes), then the mast */
-      easelBar(c, cx + dir * mw * 0.3, mEnd - 12, cx + dir * mw * 0.3, H + 10, mw * 0.78, mw * 0.9, Pb, dir, rim, R, gr * 3);
-      easelBar(c, cx, mTop, cx, mEnd, mw, mw, P, dir, rim, R, gr * 7);
+      easelBar(c, cx + dir * mw * 0.3, mEnd - 12, cx + dir * mw * 0.3, H + 10, mw * 0.78, mw * 0.9, Pb, dir, rim, R, gr * 6);
+      easelBar(c, cx, mTop, cx, mEnd, mw, mw, P, dir, rim, R, gr * 12);
       if (!mini) { // the mast's end shades the back leg
         c.fillStyle = easelLin(c, 0, mEnd, 0, mEnd + mw * 1.4, [[0, 'rgba(0,0,0,.34)'], [1, 'rgba(0,0,0,0)']]); c.fillRect(cx + dir * mw * 0.3 - mw * 0.39, mEnd, mw * 0.78, mw * 1.4);
-      }
-      c.fillStyle = `rgba(${rimTop},.5)`; c.fillRect(cx - mw / 2 + 0.5, mTop, mw - 1, mini ? 0.6 : 1.2); // the mast's top end catches the light
+        // the mast's top: a small chamfer turned up to the light, and the line where it meets the front face
+        const eh = Math.max(2, mw * 0.16);
+        c.fillStyle = `rgba(${rimTop},${(0.22 * up).toFixed(3)})`; c.fillRect(cx - mw / 2, mTop, mw, eh);
+        c.fillStyle = `rgba(${rimTop},${(0.5 * up).toFixed(3)})`; c.fillRect(cx - mw / 2 + 0.5, mTop, mw - 1, 1);
+        c.fillStyle = 'rgba(20,10,4,.16)'; c.fillRect(cx - mw / 2, mTop + eh, mw, 0.8);
+      } else { c.fillStyle = `rgba(${rimTop},.5)`; c.fillRect(cx - mw / 2 + 0.5, mTop, mw - 1, 0.6); }
 
       /* front legs: they meet behind the canvas and open slightly as they come down, leaving the screen */
       for (const sg of [-1, 1]) {
         const y1 = tb - 8, y2 = H + 12;
-        easelBar(c, cx + sg * off(y1), y1, cx + sg * off(y2), y2, lw * 0.86, lw * 1.04, P, dir, rim, R, gr * 8);
-        if (!mini) { // a small metal collar on each leg
-          const t = 0.34, yy = y1 + (y2 - y1) * t, xx = cx + sg * off(yy);
-          easelBar(c, xx, yy, cx + sg * off(yy + lw * 0.36), yy + lw * 0.36, lw * 1.1, lw * 1.1, EASEL_METAL, dir, rim, R, 0);
+        easelBar(c, cx + sg * off(y1), y1, cx + sg * off(y2), y2, lw * 0.86, lw * 1.04, P, dir, rim, R, gr * 16);
+        if (!mini) { // a brass collar on each leg, where the leg's two lengths meet
+          const t = 0.34, yy = y1 + (y2 - y1) * t, xx = cx + sg * off(yy), yz = yy + lw * 0.36;
+          c.fillStyle = 'rgba(16,8,2,.22)'; c.beginPath(); c.moveTo(xx - lw * 0.55, yz); c.lineTo(xx + lw * 0.55, yz); c.lineTo(xx + lw * 0.52, yz + 2.2); c.lineTo(xx - lw * 0.52, yz + 2.2); c.closePath(); c.fill(); // its shadow on the leg
+          easelBar(c, xx, yy, cx + sg * off(yz), yz, lw * 1.1, lw * 1.1, M, dir, rim, R, 0);
+          c.fillStyle = `rgba(255,240,205,${(0.3 * (1 - 0.6 * nk)).toFixed(3)})`; c.fillRect(xx - lw * 0.5, yy + 0.6, lw, 0.8); // its rolled top edge
         }
       }
 
-      if (!mini) easelBar(c, cx, tb - 2, cx, tb + Math.max(9, u * 0.024), mw * 1.9, mw * 1.9, { sh: P.sh, md: easelMix(P.md, P.sh, 0.35), lt: easelMix(P.lt, P.md, 0.3) }, dir, rim, R, 2); // the tray's mount on the mast
+      if (!mini) { // the tray's mount on the mast, held by a thumbscrew
+        const my0 = tb - 2, my1 = tb + Math.max(9, u * 0.024);
+        easelBar(c, cx, my0, cx, my1, mw * 1.9, mw * 1.9, { sh: P.sh, md: easelMix(P.md, P.sh, 0.35), lt: easelMix(P.lt, P.md, 0.3) }, dir, rim, R, 3);
+        easelKnob(c, cx, (my0 + my1) / 2 + 1, Math.max(2.6, mw * 0.27), dir, M, rim);
+      }
 
-      /* the tray: its top face (a thin trapezoid seen from above), its front, a light edge */
+      /* the tray: its top face (a thin trapezoid seen from above), its front rising in a lip at the edge, a light edge */
+      const lit = dir > 0, lip = mini ? 0 : Math.max(2.5, tt * 0.32), fy = ty + tt - lip;
+      const front = (y0, y1) => { // the front face between y0 and y1 (its light along it, and from above)
+        c.fillStyle = easelLin(c, tx0, 0, tx1, 0, [[0, easelRGB(lit ? P.sh : easelMix(P.md, P.lt, 0.5))], [0.45, easelRGB(P.md)], [1, easelRGB(lit ? easelMix(P.md, P.lt, 0.55) : P.sh)]]);
+        c.fillRect(tx0, y0, tx1 - tx0, y1 - y0);
+        c.fillStyle = easelLin(c, 0, fy, 0, tb, [[0, 'rgba(255,235,200,.22)'], [0.35, 'rgba(255,235,200,0)'], [1, 'rgba(0,0,0,.26)']]); c.fillRect(tx0, y0, tx1 - tx0, y1 - y0);
+      };
       {
-        const lit = dir > 0;
         c.beginPath(); c.moveTo(tx0 + 2, ty - tt * 0.5); c.lineTo(tx1 - 2, ty - tt * 0.5); c.lineTo(tx1, ty + tt); c.lineTo(tx0, ty + tt); c.closePath();
         c.fillStyle = easelLin(c, tx0, 0, tx1, 0, [[0, easelRGB(lit ? easelMix(P.md, P.sh, 0.3) : P.lt)], [1, easelRGB(lit ? P.lt : easelMix(P.md, P.sh, 0.3))]]); c.fill();
-        c.fillStyle = `rgba(${rimTop},.16)`; c.fill();
-        c.fillStyle = easelLin(c, tx0, 0, tx1, 0, [[0, easelRGB(lit ? P.sh : easelMix(P.md, P.lt, 0.5))], [0.45, easelRGB(P.md)], [1, easelRGB(lit ? easelMix(P.md, P.lt, 0.55) : P.sh)]]);
-        c.fillRect(tx0, ty + tt, tx1 - tx0, tf);
-        c.fillStyle = easelLin(c, 0, ty + tt, 0, tb, [[0, 'rgba(255,235,200,.22)'], [0.35, 'rgba(255,235,200,0)'], [1, 'rgba(0,0,0,.26)']]); c.fillRect(tx0, ty + tt, tx1 - tx0, tf);
-        c.fillStyle = `rgba(${rim},.55)`; c.fillRect(tx0, ty + tt, tx1 - tx0, mini ? 0.6 : 1); // front-top bevel
-        if (!mini) {
-          c.save(); c.beginPath(); c.rect(tx0, ty + tt, tx1 - tx0, tf); c.clip();
-          for (let i = 0; i < 9; i++) { const y = ty + tt + 2 + R() * (tf - 4), x = tx0 + R() * (tx1 - tx0), l = 30 + R() * 140; c.strokeStyle = R() < 0.7 ? `rgba(30,18,8,${0.06 + R() * 0.07})` : `rgba(255,240,215,${0.05 + R() * 0.05})`; c.lineWidth = 0.6 + R() * 0.6; c.beginPath(); c.moveTo(x, y); c.lineTo(x + l, y + (R() - 0.5) * 1.2); c.stroke(); }
-          c.restore();
-        }
-        // lit end of the tray
-        c.fillStyle = `rgba(${rim},.5)`; c.fillRect(lit ? tx1 - 1.2 : tx0, ty + tt, 1.2, tf);
+        c.fillStyle = `rgba(${rimTop},${(0.16 * up).toFixed(3)})`; c.fill();
+        front(ty + tt, tb); // (the lip above it comes after what lies on the tray)
+        if (mini) { c.fillStyle = `rgba(${rim},.55)`; c.fillRect(tx0, ty + tt, tx1 - tx0, 0.6); }
         // the tray's shadow on what is below it
         c.fillStyle = easelLin(c, 0, tb, 0, tb + u * 0.022, [[0, 'rgba(0,0,0,.26)'], [1, 'rgba(0,0,0,0)']]); c.fillRect(tx0 + 2, tb, tx1 - tx0 - 4, u * 0.022);
       }
 
-      /* the canvas: primed linen, calm and even; a soft fall of light from the lit side. Primed in the reading colour when asked. */
+      /* the canvas: primed linen, calm and even; a soft fall of light from the lit side. Primed in the reading colour when asked.
+         At night it keeps most of its light (the text is on it), the wood around it much less. */
       {
-        const tone = o.bg ? toneOf(o.bg) : null, f0 = tone ? tone.p : kind === 'natural' ? [237, 228, 209] : [233, 224, 204], a = dir > 0 ? S.x + S.w : S.x, b = dir > 0 ? S.x : S.x + S.w;
-        c.fillStyle = easelLin(c, a, 0, b, 0, [[0, easelRGB(easelMix(f0, [255, 240, 205], 0.11))], [0.45, easelRGB(easelMix(f0, [255, 240, 205], 0.02))], [1, easelRGB(easelMix(f0, tone && tone.dark ? [0, 0, 0] : [92, 70, 44], 0.1))]]); c.fillRect(S.x, S.y, S.w, S.h);
-        if (!mini) { // a hint of weave: dark threads, and on a dark ground light ones, or the cloth would read as a flat board
-          const weave = (dark) => {
-            const tile = document.createElement('canvas'), n = 96, g = tile.getContext('2d'); tile.width = tile.height = Math.round(n * k); g.scale(tile.width / n, tile.width / n); tile.k = k;
-            const th = dark ? '60,44,26' : '255,246,228';
-            for (let i = 0; i < n; i += 3) { g.fillStyle = `rgba(${th},${0.006 + R() * 0.012})`; g.fillRect(0, i, n, 1); g.fillStyle = `rgba(${th},${0.006 + R() * 0.012})`; g.fillRect(i + 1, 0, 1, n); }
-            for (let i = 0; i < 22; i++) { g.fillStyle = `rgba(${R() < 0.5 ? '255,250,238' : '70,52,32'},${0.012 + R() * 0.016})`; g.fillRect(R() * n, R() * n, 4 + R() * 22, 1); }
-            return tile;
-          };
-          if (!easelWeave || easelWeave.k !== k) easelWeave = weave(true);
-          const n0 = 96, pat = c.createPattern(easelWeave, 'repeat'); if (pat.setTransform) pat.setTransform(new DOMMatrix().scale(n0 / easelWeave.width));
+        const tone = o.bg ? toneOf(o.bg) : null, nc = tone ? 0.5 : 1, a = dir > 0 ? S.x + S.w : S.x, b = dir > 0 ? S.x : S.x + S.w;
+        // (at night only a little dimmer, keeping its warmth: a cream page, not a grey one)
+        const cd = (a, kk) => a.map((v) => v * (1 - 0.085 * nk * kk * nc));
+        const fz = tone ? tone.p : kind === 'natural' ? [237, 228, 209] : [233, 224, 204], f0 = cd(fz, 1);
+        const fall = tone && tone.dark ? [0, 0, 0] : [92, 70, 44];
+        c.fillStyle = easelLin(c, a, 0, b, 0, [[0, easelRGB(easelMix(f0, [255, 240, 205], 0.11))], [0.45, easelRGB(easelMix(f0, [255, 240, 205], 0.02))], [1, easelRGB(easelMix(f0, fall, 0.1 + 0.06 * nk))]]); c.fillRect(S.x, S.y, S.w, S.h);
+        if (!mini) { // the weave of the linen under its priming: dark threads, and on a dark ground light ones, or the cloth would read as a flat board
+          if (!easelWeave || easelWeave.k !== k) easelWeave = easelLinen(k, true);
+          const n0 = 128, pat = c.createPattern(easelWeave, 'repeat'); if (pat.setTransform) pat.setTransform(new DOMMatrix().scale(n0 / easelWeave.width));
           c.fillStyle = pat; c.fillRect(S.x, S.y, S.w, S.h);
           if (tone && tone.l < 0.6) {
-            if (!easelWeaveL || easelWeaveL.k !== k) easelWeaveL = weave(false);
+            if (!easelWeaveL || easelWeaveL.k !== k) easelWeaveL = easelLinen(k, false);
             const pl = c.createPattern(easelWeaveL, 'repeat'); if (pl.setTransform) pl.setTransform(new DOMMatrix().scale(n0 / easelWeaveL.width));
             c.save(); c.globalAlpha = Math.min(1, (0.6 - tone.l) * 2.6); c.fillStyle = pl; c.fillRect(S.x, S.y, S.w, S.h); c.restore();
           }
           // the canvas pulls slightly at its edges
           c.fillStyle = easelLin(c, 0, S.y, 0, S.y + 7, [[0, 'rgba(70,48,28,.07)'], [1, 'rgba(70,48,28,0)']]); c.fillRect(S.x, S.y, S.w, 7);
+          // where the cloth passes over the inner edges of the stretcher bars: a faint ridge all round, lit on the side
+          // turned to the light (and from above), shaded on the other
+          const si = Math.max(9, u * 0.034), X0 = S.x + si, X1 = S.x + S.w - si, Y0 = S.y + si, Y1 = yb - si;
+          if (X1 - X0 > 4 * si && Y1 - Y0 > 4 * si) {
+            const hi = tone && tone.dark ? 'rgba(255,246,228,.025)' : 'rgba(255,250,240,.04)', lo = tone && tone.dark ? 'rgba(0,0,0,.06)' : 'rgba(80,58,34,.028)';
+            for (const x of [X0, X1]) { c.fillStyle = lo; c.fillRect(x - (dir > 0 ? 1 : 0), Y0, 1, Y1 - Y0); c.fillStyle = hi; c.fillRect(x - (dir > 0 ? 0 : 1), Y0, 1, Y1 - Y0); }
+            for (const y of [Y0, Y1]) { c.fillStyle = hi; c.fillRect(X0, y - 1, X1 - X0, 1); c.fillStyle = lo; c.fillRect(X0, y, X1 - X0, 1); }
+          }
         }
-        // the stretcher's side, on the lit side: the primed canvas turning round the edge
+        // the stretcher's side, on the lit side: the primed canvas turning round the edge, tacked to the frame
         const ex = dir > 0 ? S.x + S.w : S.x - d, p = d * 0.34;
         c.beginPath();
         if (dir > 0) { c.moveTo(ex, S.y); c.lineTo(ex + d, S.y + p); c.lineTo(ex + d, yb - p); c.lineTo(ex, yb); }
         else { c.moveTo(ex + d, S.y); c.lineTo(ex, S.y + p); c.lineTo(ex, yb - p); c.lineTo(ex + d, yb); }
         c.closePath();
-        const side = tone ? [easelMix(f0, tone.dark ? [0, 0, 0] : [92, 70, 44], 0.14), easelMix(f0, tone.dark ? [0, 0, 0] : [92, 70, 44], 0.07), easelMix(f0, [255, 240, 205], 0.05)].map((v) => easelRGB(v)) : ['#d9cbb0', '#e4d6ba', '#f1e4c6'];
+        const side = (tone ? [easelMix(fz, tone.dark ? [0, 0, 0] : [92, 70, 44], 0.14), easelMix(fz, tone.dark ? [0, 0, 0] : [92, 70, 44], 0.07), easelMix(fz, [255, 240, 205], 0.05)] : [[217, 203, 176], [228, 214, 186], [241, 228, 198]]).map((v) => easelRGB(cd(v, 2)));
         c.fillStyle = easelLin(c, dir > 0 ? ex : ex + d, 0, dir > 0 ? ex + d : ex, 0, [[0, side[0]], [0.55, side[1]], [1, side[2]]]); c.fill();
         c.save(); c.clip();
         c.fillStyle = `rgba(${rim},.18)`; c.fillRect(ex, S.y, d, S.h);
         c.fillStyle = easelLin(c, 0, S.y, 0, yb, [[0, 'rgba(255,255,255,0)'], [0.85, 'rgba(255,255,255,0)'], [1, 'rgba(0,0,0,.16)']]); c.fillRect(ex, S.y, d, S.h);
+        if (!mini) {
+          // the corners, where the cloth folds over the frame
+          c.strokeStyle = 'rgba(80,58,34,.2)'; c.lineWidth = 0.7;
+          const fx0 = dir > 0 ? ex : ex + d, fx1 = dir > 0 ? ex + d * 0.85 : ex + d * 0.15;
+          c.beginPath(); c.moveTo(fx0, S.y + 0.5); c.lineTo(fx1, S.y + p + d * 0.9); c.moveTo(fx0, yb - 0.5); c.lineTo(fx1, yb - p - d * 0.9); c.stroke();
+          // the tacks: small iron heads at even steps along the side, each with its glint toward the light
+          const ts = Math.max(24, u * 0.068), n = Math.max(2, Math.round((S.h - 2 * p) / ts)), step = (S.h - 2 * p) / n, rt = Math.max(0.7, d * 0.085), tx = ex + d * 0.5;
+          const tk = easelRGB(nd([104, 92, 78], 0.5)), tg = `rgba(${rim},.45)`;
+          for (let i = 0; i < n; i++) {
+            const y = S.y + p + step * (i + 0.5) + (R() - 0.5) * step * 0.08;
+            c.fillStyle = 'rgba(60,44,26,.14)'; c.beginPath(); c.arc(tx - dir * rt * 0.3, y + rt * 0.45, rt * 1.2, 0, TAU); c.fill();
+            c.fillStyle = tk; c.beginPath(); c.arc(tx, y, rt, 0, TAU); c.fill();
+            c.fillStyle = tg; c.beginPath(); c.arc(tx + dir * rt * 0.35, y - rt * 0.35, rt * 0.38, 0, TAU); c.fill();
+          }
+        }
         c.restore();
         c.fillStyle = 'rgba(90,64,38,.3)'; c.fillRect(dir > 0 ? S.x + S.w : S.x - 1, S.y, 1, S.h); // the crease where the face turns
         c.fillStyle = `rgba(${rim},.7)`; c.fillRect(dir > 0 ? ex + d - 1 : ex, S.y + p, 1, S.h - 2 * p); // the lit corner
+        if (!mini) {
+          c.fillStyle = `rgba(${rimTop},${(0.3 * up).toFixed(3)})`; c.fillRect(S.x, S.y, S.w, 1); // the top edge catches the light
+          c.fillStyle = 'rgba(50,34,18,.18)'; c.fillRect(dir > 0 ? S.x : S.x + S.w - 1, S.y, 1, S.h); // the far edge, in its own shade
+        }
         // where the canvas stands on the tray
         c.fillStyle = easelLin(c, 0, yb, 0, yb + tt, [[0, 'rgba(20,10,4,.28)'], [1, 'rgba(20,10,4,0)']]); c.fillRect(S.x, yb, S.w + (dir > 0 ? d : 0), tt);
       }
 
-      /* the clamp at the top of the mast, biting on the canvas */
+      /* the clamp at the top of the mast: a block whose lower jaw bites on the canvas, tightened by a brass thumbscrew */
       {
-        const cw = Math.max(mini ? 4 : 22, mw * 2.5), ch = Math.max(mini ? 2.4 : 15, u * 0.027), bite = mini ? 1.2 : 7, y1 = S.y + bite, y0 = y1 - ch;
-        if (!mini) { c.fillStyle = easelLin(c, 0, y1, 0, y1 + 9, [[0, 'rgba(40,24,10,.3)'], [1, 'rgba(40,24,10,0)']]); c.fillRect(cx - cw * 0.46, y1, cw * 0.92, 9); }
-        easelBar(c, cx, y0, cx, y1, cw, cw, P, dir, rim, R, gr * 4);
-        c.fillStyle = `rgba(${rimTop},.45)`; c.fillRect(cx - cw / 2 + 1, y0, cw - 2, mini ? 0.6 : 1.2);
-        if (!mini) { // the clamp's screw
-          const r = mw * 0.3, sx = cx, sy = y0 + ch * 0.46;
-          c.fillStyle = easelRGB(EASEL_METAL.sh); c.beginPath(); c.arc(sx, sy, r + 0.8, 0, TAU); c.fill();
-          c.fillStyle = easelLin(c, sx - r, sy - r, sx + r, sy + r, [[0, '#e6dcc2'], [1, '#7c6c4a']]); c.beginPath(); c.arc(sx, sy, r, 0, TAU); c.fill();
-          c.fillStyle = 'rgba(40,28,14,.5)'; c.fillRect(sx - r * 0.7, sy - 0.4, r * 1.4, 0.9);
+        const bite = mini ? 1.2 : Math.max(5, u * 0.0068), y1 = S.y + bite, y0 = y1 - ch;
+        if (!mini) { c.fillStyle = easelLin(c, 0, y1, 0, y1 + 10, [[0, 'rgba(40,24,10,.32)'], [1, 'rgba(40,24,10,0)']]); c.fillRect(cx - cw * 0.47 - dir * 1.5, y1, cw * 0.94, 10); }
+        easelBar(c, cx, y0, cx, y1, cw, cw, P, dir, rim, R, 0);
+        c.fillStyle = `rgba(${rimTop},${(0.45 * (mini ? 1 : up)).toFixed(3)})`; c.fillRect(cx - cw / 2 + 1, y0, cw - 2, mini ? 0.6 : 1.2);
+        if (!mini) {
+          c.lineWidth = 0.6; // its grain runs across, along the block
+          for (let i = 0; i < 4; i++) { const y = y0 + 2.5 + R() * (ch - bite - 5); c.strokeStyle = `rgba(34,20,8,${(0.07 + R() * 0.08).toFixed(3)})`; c.beginPath(); c.moveTo(cx - cw / 2 + 1, y); c.quadraticCurveTo(cx, y + (R() - 0.5) * 2, cx + cw / 2 - 1, y + (R() - 0.5) * 1.5); c.stroke(); }
+          const jy = y1 - bite - 1.5; // the jaw: a groove, its top edge in the light, its lower edge
+          c.fillStyle = 'rgba(16,8,2,.32)'; c.fillRect(cx - cw / 2 + 1, jy, cw - 2, 1);
+          c.fillStyle = `rgba(${rimTop},${(0.2 * up).toFixed(3)})`; c.fillRect(cx - cw / 2 + 1, jy + 1, cw - 2, 1);
+          c.fillStyle = 'rgba(16,8,2,.2)'; c.fillRect(cx - cw / 2, y1 - 1, cw, 1);
+          easelKnob(c, cx, y0 + (ch - bite) * 0.48, Math.max(3.6, mw * 0.34), dir, M, rim);
         }
       }
 
-      /* small things on the tray: two brushes on the shaded side, a smear of paint at the other end */
+      /* on the tray: two brushes on the shaded side, a tube of paint and a dab of it at the other end; then the lip in front */
       if (!mini) {
-        const sh = dir > 0 ? 1 : -1, bl = u * 0.125, bx = dir > 0 ? S.x + S.w * 0.05 : S.x + S.w * 0.95 - bl; // brushes: handles toward the end of the tray
+        // (each lies from its anchor toward the lit end, turned round when the light comes from the left)
+        const sh = dir > 0 ? 1 : -1, bl = u * 0.13, bx = dir > 0 ? S.x + S.w * 0.05 : S.x + S.w * 0.95; // brushes: handles toward the end of the tray
+        const bth = Math.max(3, tt * 0.27);
         c.save(); c.beginPath(); c.rect(tx0, ty - 3, tx1 - tx0, tt + 3); c.clip();
-        easelBrush(c, bx, ty + tt * 0.34, bl, 3.4, -0.02 * sh, dir < 0, [188, 138, 66], P);
-        easelBrush(c, bx + sh * 11, ty + tt * 0.68, bl * 0.86, 3, 0.012 * sh, dir < 0, [58, 84, 128], P);
+        easelBrush(c, bx, ty + tt * 0.3, bl, bth, -0.018 * sh, dir < 0, [176, 118, 52], [128, 40, 32], nd);
+        easelBrush(c, bx + sh * 14, ty + tt * 0.56, bl * 0.86, bth * 0.88, 0.012 * sh, dir < 0, [52, 80, 128], [38, 34, 30], nd);
+        const tl = Math.max(24, u * 0.05), tth = Math.max(5, tt * 0.56), tx = dir > 0 ? S.x + S.w * 0.72 : S.x + S.w * 0.28, tyy = ty + tt * 0.42;
+        const dab = nd([150, 66, 48]), px = tx - sh * 12, py = ty + tt * 0.5;
+        c.fillStyle = 'rgba(0,0,0,.2)'; c.beginPath(); c.ellipse(px, py + 1, 4.6, 1.8, 0, 0, TAU); c.fill();
+        c.fillStyle = easelRGB(dab); c.beginPath(); c.ellipse(px, py, 4.4, 1.9, 0.08, 0, TAU); c.fill();
+        c.fillStyle = 'rgba(255,240,220,.4)'; c.beginPath(); c.ellipse(px - 1.2, py - 0.6, 1.6, 0.5, 0, 0, TAU); c.fill();
+        easelTube(c, tx, tyy, tl, tth, dir < 0, [150, 66, 48], nd);
         c.restore();
-        const px = dir > 0 ? S.x + S.w * 0.84 : S.x + S.w * 0.16, py = ty + tt * 0.6;
-        for (const [dx, dy, rx, col] of [[0, 0, 5.2, [176, 126, 56]], [-sh * 10, 1, 3.4, [150, 66, 48]]]) {
-          c.fillStyle = 'rgba(0,0,0,.22)'; c.beginPath(); c.ellipse(px + dx, py + dy + 1.2, rx, rx * 0.4, 0, 0, TAU); c.fill();
-          c.fillStyle = easelRGB(col); c.beginPath(); c.ellipse(px + dx, py + dy, rx, rx * 0.44, 0, 0, TAU); c.fill();
-          c.fillStyle = 'rgba(255,240,220,.38)'; c.beginPath(); c.ellipse(px + dx - rx * 0.25, py + dy - rx * 0.14, rx * 0.34, rx * 0.12, 0, 0, TAU); c.fill();
-        }
-      }
+        front(fy, ty + tt); // the lip, in front of what lies on the tray
+        c.fillStyle = `rgba(${rim},.55)`; c.fillRect(tx0, fy, tx1 - tx0, 1); // its top edge
+        c.fillStyle = 'rgba(16,8,2,.18)'; c.fillRect(tx0, ty + tt, tx1 - tx0, 0.8); // the line where the lip meets the front
+        c.save(); c.beginPath(); c.rect(tx0, fy, tx1 - tx0, tb - fy); c.clip(); // the grain of the front
+        for (let i = 0; i < 10; i++) { const y = fy + 1.5 + R() * (tb - fy - 3), x = tx0 + R() * (tx1 - tx0), l = 30 + R() * 150; c.strokeStyle = R() < 0.7 ? `rgba(30,18,8,${(0.06 + R() * 0.07).toFixed(3)})` : `rgba(255,240,215,${(0.05 + R() * 0.05).toFixed(3)})`; c.lineWidth = 0.5 + R() * 0.6; c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + l / 2, y + (R() - 0.5) * 1.6, x + l, y + (R() - 0.5) * 1.2); c.stroke(); }
+        c.restore();
+        // the tray's ends: the lit one shows its end grain in the light, the other a dark edge
+        const ew = Math.max(1.4, tt * 0.12);
+        c.fillStyle = `rgba(${rim},.45)`; c.fillRect(lit ? tx1 - ew : tx0, fy, ew, tb - fy);
+        c.fillStyle = 'rgba(16,8,2,.3)'; c.fillRect(lit ? tx0 : tx1 - 1, fy, 1, tb - fy);
+      } else { c.fillStyle = `rgba(${rim},.5)`; c.fillRect(lit ? tx1 - 1.2 : tx0, ty + tt, 1.2, tf); }
 
       /* a fine film grain over the object only */
       if (!mini) {
         if (!easelNoise) {
-          const n = 128, tile = document.createElement('canvas'); tile.width = tile.height = n; const g = tile.getContext('2d'), id = g.createImageData(n, n);
-          for (let i = 0; i < id.data.length; i += 4) { const v = R() < 0.5 ? 0 : 255; id.data[i] = id.data[i + 1] = id.data[i + 2] = v; id.data[i + 3] = (R() ** 2) * 11; }
+          const n = 128, tile = document.createElement('canvas'), Rn = easelRand(5); tile.width = tile.height = n; const g = tile.getContext('2d'), id = g.createImageData(n, n);
+          for (let i = 0; i < id.data.length; i += 4) { const v = Rn() < 0.5 ? 0 : 255; id.data[i] = id.data[i + 1] = id.data[i + 2] = v; id.data[i + 3] = (Rn() ** 2) * 11; }
           g.putImageData(id, 0, 0); easelNoise = tile;
         }
         c.save(); c.globalCompositeOperation = 'source-atop'; const pat = c.createPattern(easelNoise, 'repeat'); if (pat.setTransform) pat.setTransform(new DOMMatrix().scale(1 / k)); c.fillStyle = pat; for (const r of wood) c.fillRect(r[0], r[1], r[2], r[3]); c.restore();
@@ -256,36 +392,52 @@
   // Total margin kept around the text area (moulding + mat border), and the headroom above it for the lamp or the cord.
   const frameExt = (u) => Math.max(5, u * 0.056);
   const frameHead = (u) => Math.max(3, u * 0.05);
-  // Colour ramps by value 0..1: [v, r, g, b].
+  // Colour ramps by value 0..1: [v, r, g, b]. The gold goes from a deep olive brown in its hollows to a pale, almost white
+  // yellow where it is burnished and faces the light (its brightest tones only on narrow sheens); the brass is the lamp's.
   const FRAME_RAMP = {
-    gilt: [[0, 36, 24, 11], [0.2, 86, 61, 27], [0.4, 138, 103, 48], [0.6, 183, 146, 74], [0.8, 223, 190, 112], [1, 252, 234, 172]],
+    gilt: [[0, 44, 25, 9], [0.15, 82, 50, 18], [0.32, 132, 90, 34], [0.5, 178, 134, 58], [0.66, 212, 170, 84], [0.8, 235, 201, 120], [0.92, 248, 228, 166], [1, 255, 246, 210]],
     walnut: [[0, 19, 11, 6], [0.25, 49, 30, 17], [0.5, 87, 57, 34], [0.75, 130, 91, 58], [1, 180, 136, 94]],
-    raw: [[0, 10, 7, 5], [0.25, 28, 20, 14], [0.5, 53, 39, 27], [0.75, 84, 64, 46], [1, 124, 97, 70]],
+    raw: [[0, 16, 11, 7], [0.25, 40, 28, 18], [0.5, 74, 53, 34], [0.75, 112, 84, 56], [1, 158, 124, 88]],
     black: [[0, 3, 3, 3], [0.3, 14, 14, 15], [0.6, 32, 31, 31], [1, 108, 102, 94]],
+    brass: [[0, 44, 28, 10], [0.3, 116, 82, 34], [0.6, 192, 142, 60], [0.85, 238, 202, 128], [1, 254, 240, 196]],
   };
-  const frameRgb = (kind, v, a = 1) => {
-    const r = FRAME_RAMP[kind], t = frameClamp(v, 0, 1);
+  // A colour of a ramp (one of FRAME_RAMP, as tuned to the scene by frameTune) at value v.
+  const frameRgb = (r, v, a = 1) => {
+    const t = frameClamp(v, 0, 1);
     let i = 1; while (i < r.length - 1 && r[i][0] < t) i++;
     const p = r[i - 1], q = r[i], f = frameClamp((t - p[0]) / (q[0] - p[0]), 0, 1);
     return `rgba(${Math.round(frameLerp(p[1], q[1], f))},${Math.round(frameLerp(p[2], q[2], f))},${Math.round(frameLerp(p[3], q[3], f))},${a})`;
   };
-  // Profiles, outer edge to sight edge: [width, tone at the outer side, tilt there, tone at the inner side, tilt there]; the tilt is
-  // how much the surface faces away from the wall's centre (+1) or toward it (-1): it decides how the light plays on the band.
+  // A ramp under the scene's light: every tone dimmed by dim (1 by day, lower in a dark scene) and pulled a little (ta, more
+  // in the shadows than in the lights) toward the hue of what surrounds the frame (under, 0..1). The wood or the gold then
+  // sits in the scene's air, cool under a night sky, warm by the fire, instead of keeping the same studio light day and night.
+  function frameTune(ramp, dim, under, ta) {
+    const mu = under ? (under[0] + under[1] + under[2]) / 3 : 0, hue = mu > 0.004 ? under.map((v) => Math.min(2, v / mu)) : null;
+    return ramp.map(([v, ...p]) => [v, ...p.map((x, i) => Math.min(255, x * dim * (hue ? 1 + (hue[i] - 1) * ta * (1 - 0.6 * v) : 1)))]);
+  }
+  // Profiles, outer edge to sight edge: [width, tone at the outer side, tilt there, tone at the inner side, tilt there, finish,
+  // ramp]. The tilt is how much the surface faces away from the wall's centre (+1) or toward it (-1): it decides how the light
+  // plays on the band. finish (1 when absent) is how polished the band is: a burnished band takes the light fully, with a narrow
+  // sheen; a matte one (0) half as much, without sheen. ramp names another ramp than the frame's (the walnut's gilt slip).
+  // fw: the moulding's share of the margin, the rest is the mat; night: how far the tones fall in a dark scene; jit: how much
+  // the four sides differ in tone (four lengths of wood, mitred); sheen: the half-width of a sheen, across its band.
   const FRAME_KIND = {
     gilt: {
-      fw: 0.76, gain: 0.5, spec: 0.5, mat: ['233,222,199', '242,234,214'], beads: 4,
-      prof: [[0.07, 0.5, 0.55, 0.52, 0.35], [0.27, 0.52, 1, 0.5, -1], [0.04, 0.72, 0, 0.72, 0], [0.19, 0.3, -0.9, 0.34, 0.9], [0.17, 0.5, 0, 0.5, 0], [0.03, 0.7, 0, 0.7, 0], [0.23, 0.52, -1, 0.5, -0.2]],
+      fw: 0.67, gain: 0.62, spec: 0.5, sheen: 0.07, night: 0.5, jit: 0.012, mat: ['233,222,199', '242,234,214'], beads: 4,
+      prof: [[0.06, 0.4, 0.7, 0.46, 0.3, 0.6], [0.26, 0.54, 1, 0.5, -1, 1], [0.035, 0.78, 0, 0.74, 0, 1], [0.17, 0.3, -0.9, 0.36, 0.9, 0.2],
+        [0.16, 0.46, 0, 0.46, 0, 0.25], [0.03, 0.74, 0, 0.74, 0, 1], [0.2, 0.5, -1, 0.42, -0.3, 0.7], [0.07, 0.6, 0.6, 0.36, -0.9, 1]],
     },
     walnut: {
-      fw: 0.7, gain: 0.42, spec: 0.16, mat: ['234,226,208', '242,236,221'], grain: 1,
-      prof: [[0.06, 0.55, 0.6, 0.55, 0.4], [0.4, 0.5, 1, 0.52, -0.15], [0.04, 0.62, 0, 0.62, 0], [0.28, 0.46, 0, 0.46, 0], [0.22, 0.5, -0.9, 0.48, -0.5]],
+      fw: 0.62, gain: 0.42, spec: 0.16, sheen: 0.1, night: 0.55, jit: 0.035, mat: ['234,226,208', '242,236,221'], grain: 1,
+      prof: [[0.06, 0.55, 0.6, 0.55, 0.4], [0.38, 0.5, 1, 0.52, -0.15], [0.04, 0.62, 0, 0.62, 0], [0.26, 0.46, 0, 0.46, 0], [0.19, 0.5, -0.9, 0.48, -0.5],
+        [0.07, 0.62, 0.5, 0.5, -0.8, 1, 'gilt']],
     },
     raw: {
-      fw: 0.8, gain: 0.36, spec: 0, mat: ['231,222,204', '240,233,217'], grain: 2,
+      fw: 0.7, gain: 0.36, spec: 0, night: 0.62, jit: 0.04, mat: ['231,222,204', '240,233,217'], grain: 2,
       prof: [[0.14, 0.42, 1, 0.44, 0.6], [0.6, 0.45, 0.1, 0.45, 0.1], [0.26, 0.42, -0.9, 0.4, -0.7]],
     },
     black: {
-      fw: 0.3, gain: 0.45, spec: 0.3, mat: ['241,238,231', '247,245,240'],
+      fw: 0.3, gain: 0.45, spec: 0.3, sheen: 0.1, night: 0.7, jit: 0, mat: ['241,238,231', '247,245,240'],
       prof: [[0.28, 0.34, 0.8, 0.22, 0.2], [0.44, 0.16, 0, 0.16, 0], [0.28, 0.26, -0.8, 0.3, -0.6]],
     },
   };
@@ -305,12 +457,21 @@
   }
   // A point on side s of the moulding: along its length, perp in from the outer edge.
   const framePt = (s, X0, Y0, X1, Y1, along, perp) => s === 0 ? [X0 + along, Y0 + perp] : s === 1 ? [X1 - perp, Y0 + along] : s === 2 ? [X0 + along, Y1 - perp] : [X0 + perp, Y0 + along];
-  // Wood grain: long wavering strokes along each side, clipped to the moulding by the caller.
-  function frameWood(c, X0, Y0, X1, Y1, F, kind, R, u) {
-    const rough = kind === 2, n = Math.round(F * (rough ? 1.1 : 0.9));
+  // Wood grain: long wavering strokes along each side, clipped to the moulding by the caller; F the width the grain covers (the
+  // wood, not its gilt slip), dim the scene's light on it (the pale strokes fade with it).
+  function frameWood(c, X0, Y0, X1, Y1, F, kind, R, u, dim) {
+    const rough = kind === 2, n = Math.round(F * (rough ? 0.85 : 0.9));
     c.lineCap = 'round';
     for (let s = 0; s < 4; s++) {
       const len = s % 2 ? Y1 - Y0 : X1 - X0;
+      // the figure: a few broad, faint streaks (two darker, one paler) that drift slowly across the length, under the fine grain
+      for (let i = 0; i < 3; i++) {
+        const p0 = F * (0.15 + R() * 0.7), p1 = frameClamp(p0 + (R() - 0.5) * F * 0.5, F * 0.1, F * 0.9), a = F + R() * len * 0.2, b = len - F - R() * len * 0.2;
+        const q0 = framePt(s, X0, Y0, X1, Y1, a, p0), q1 = framePt(s, X0, Y0, X1, Y1, b, p1), qm = framePt(s, X0, Y0, X1, Y1, (a + b) / 2, (p0 + p1) / 2 + (R() - 0.5) * F * 0.3);
+        c.beginPath(); c.moveTo(q0[0], q0[1]); c.quadraticCurveTo(qm[0], qm[1], q1[0], q1[1]);
+        c.lineWidth = F * (0.1 + R() * 0.16);
+        c.strokeStyle = i === 2 ? `rgba(226,184,130,${(0.04 + R() * 0.03) * dim})` : `rgba(20,9,3,${(rough ? 0.07 : 0.05) + R() * 0.04})`; c.stroke();
+      }
       for (let i = 0; i < n; i++) {
         const p = R() * F, a = p + R() * len * 0.1, b = len - p - R() * len * 0.1, dark = R() < 0.62;
         const seg = 5 + (R() * 4 | 0), amp = (rough ? 1.1 : 0.6) * (0.4 + R());
@@ -321,8 +482,8 @@
           q = framePt(s, X0, Y0, X1, Y1, al, p + w); const m = framePt(s, X0, Y0, X1, Y1, al - (b - a) / seg / 2, p + w * 0.4);
           c.quadraticCurveTo(m[0], m[1], q[0], q[1]);
         }
-        c.lineWidth = (rough ? 0.7 : 0.5) + R() * (rough ? 1.1 : 0.7);
-        c.strokeStyle = dark ? `rgba(14,6,2,${(rough ? 0.1 : 0.07) + R() * (rough ? 0.16 : 0.1)})` : `rgba(215,165,115,${0.05 + R() * 0.07})`;
+        c.lineWidth = (rough ? 0.55 : 0.5) + R() * (rough ? 0.8 : 0.7);
+        c.strokeStyle = dark ? `rgba(14,6,2,${(rough ? 0.08 : 0.07) + R() * (rough ? 0.12 : 0.1)})` : `rgba(215,165,115,${(0.05 + R() * 0.07) * dim})`;
         c.stroke();
       }
     }
@@ -342,63 +503,91 @@
       }
     }
   }
-  // A row of small pearls along the frieze of the gilt moulding (one per step, the corners shared).
-  function frameBeads(c, X0, Y0, X1, Y1, ctr, dia, dx, dy) {
+  // A row of small pearls along the frieze of the gilt moulding (one per step, the corners shared); rp the gold's ramp.
+  function frameBeads(c, X0, Y0, X1, Y1, ctr, dia, dx, dy, rp) {
     const r = dia / 2, pitch = dia * 1.34, x0 = X0 + ctr, y0 = Y0 + ctr, x1 = X1 - ctr, y1 = Y1 - ctr;
+    const c0 = frameRgb(rp, 0.97), c1 = frameRgb(rp, 0.6), c2 = frameRgb(rp, 0.14);
     const bead = (x, y) => {
       const g = c.createRadialGradient(x + dx * r * 0.38, y + dy * r * 0.38, r * 0.05, x, y, r);
-      g.addColorStop(0, frameRgb('gilt', 0.97)); g.addColorStop(0.42, frameRgb('gilt', 0.62)); g.addColorStop(1, frameRgb('gilt', 0.16));
+      g.addColorStop(0, c0); g.addColorStop(0.42, c1); g.addColorStop(1, c2);
       c.fillStyle = 'rgba(30,18,6,.35)'; c.beginPath(); c.arc(x - dx * r * 0.18, y - dy * r * 0.18 + r * 0.12, r * 1.08, 0, TAU); c.fill();
       c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill();
     };
     const run = (ax, ay, bx, by) => { const n = Math.max(1, Math.round(Math.hypot(bx - ax, by - ay) / pitch)); for (let i = 0; i < n; i++) bead(frameLerp(ax, bx, i / n), frameLerp(ay, by, i / n)); };
     run(x0, y0, x1, y0); run(x1, y0, x1, y1); run(x1, y1, x0, y1); run(x0, y1, x0, y0);
   }
-  // The scene's light on the object: a broad, even pool with no hot spot where the lamp is close.
-  function frameGlow(c, x, y, r, rgb, a) {
-    c.save(); c.globalCompositeOperation = 'lighter';
+  // The scene's light on the object: a broad, even pool with no hot spot where the lamp is close. On the moulding it is laid in
+  // soft light (mode 'soft-light'): it warms and lifts the gold or the wood but keeps their hollows dark and their sheens bright,
+  // where light simply added ('lighter') would wash the profile flat.
+  // B = [x0, y0, x1, y1]: the object's box, the only part of the pool worth filling.
+  function frameGlow(c, x, y, r, rgb, a, mode, B) {
+    const x0 = Math.max(x - r, B[0]), y0 = Math.max(y - r, B[1]), x1 = Math.min(x + r, B[2]), y1 = Math.min(y + r, B[3]);
+    if (a <= 0.003 || x1 <= x0 || y1 <= y0) return;
+    c.save(); c.globalCompositeOperation = mode;
     c.fillStyle = rad(c, x, y, r, [[0, `rgba(${rgb},${a * 0.8})`], [0.3, `rgba(${rgb},${a * 0.62})`], [0.65, `rgba(${rgb},${a * 0.22})`], [1, `rgba(${rgb},0)`]]);
-    c.fillRect(x - r, y - r, r * 2, r * 2); c.restore();
+    c.fillRect(x0, y0, x1 - x0, y1 - y0); c.restore();
   }
-  // The thin cord to a nail, drawn behind the moulding.
-
-  function frameCord(c, cx, top, fw, F, rise, u, dark, sx, sy) {
+  // The cord to a nail, drawn behind the moulding: a twisted cord (a fine lighter strand winding round it) and a brass nail.
+  // dim: the scene's light (by night both fall dark, instead of shining pale against a night sky).
+  function frameCord(c, cx, top, fw, F, rise, u, dark, sx, sy, dim) {
     const spread = fw * 0.27, ny = top - rise, y0 = top + F * 0.5, lw = Math.max(1, u * 0.0016);
+    const col = (dark ? [78, 58, 38] : [190, 160, 114]).map((v) => v * dim);
     c.save(); c.lineCap = 'round'; c.lineJoin = 'round';
     const path = (ox, oy) => { c.beginPath(); c.moveTo(cx - spread + ox, y0 + oy); c.lineTo(cx + ox, ny + oy); c.lineTo(cx + spread + ox, y0 + oy); };
     path(sx * 0.35, Math.max(1.5, sy * 0.4)); c.strokeStyle = 'rgba(0,0,0,.1)'; c.lineWidth = lw * 1.6; c.stroke();
-    path(0, 0); c.strokeStyle = dark ? 'rgba(78,58,38,.92)' : 'rgba(190,160,114,.9)'; c.lineWidth = lw; c.stroke();
+    path(0, 0); c.strokeStyle = rgbCss(col, 0.92); c.lineWidth = lw; c.stroke();
+    if (lw >= 1.2 && c.setLineDash) { // the twist
+      c.setLineDash([lw * 0.9, lw * 0.9]); c.lineCap = 'butt'; c.strokeStyle = dark ? `rgba(255,236,200,${0.12 * dim})` : `rgba(40,26,12,${0.12 * dim + 0.04})`; c.lineWidth = lw * 0.55; c.stroke(); c.setLineDash([]);
+    }
     const nr = Math.max(1.6, u * 0.0034);
     c.fillStyle = 'rgba(0,0,0,.14)'; c.beginPath(); c.arc(cx + sx * 0.2, ny + Math.max(1, sy * 0.25), nr * 1.1, 0, TAU); c.fill();
-
     c.fillStyle = rad(c, cx - nr * 0.3, ny - nr * 0.3, nr * 1.3, [[0, '#f0dca2'], [0.5, '#a98446'], [1, '#4d3a1c']]); c.beginPath(); c.arc(cx, ny, nr, 0, TAU); c.fill();
+    if (dim < 0.98) { c.fillStyle = `rgba(6,5,8,${(1 - dim) * 0.85})`; c.beginPath(); c.arc(cx, ny, nr + 0.3, 0, TAU); c.fill(); }
     c.restore();
   }
-  // The brass picture light: a tube on a short stem above the frame, and the soft cone of warm light it throws down.
-  function frameLamp(c, cx, top, fw, fh, head, u, k, sx, sy, ring, mat) {
-    const Lb = frameClamp(fw * 0.3, 24, u * 0.36), tb = Math.max(3.4, head * 0.17), gap = Math.max(4, head * 0.3), ty = top - gap - tb / 2;
-    // the pool of light: brightest under the tube, easing out over the moulding and the mat
-    const pool = (a, rx, ry) => {
-      c.save(); c.translate(cx, ty + tb * 0.5); c.scale(1, ry / rx);
+  // The brass picture light: a hood (a half cylinder) on a short arm that comes over the frame's top edge, its lit slot seen from
+  // a little below, and the soft pool of warm light it throws down over the moulding and the top of the mat. amb: how bright the
+  // scene is (1 by day): at night the pool is the frame's main light, and the brass shows less of the room.
+  function frameLamp(c, cx, top, fw, fh, head, u, k, sx, sy, ring, mat, amb) {
+    // (when the frame is pushed up to the window's top edge, the hood comes down in front of the moulding rather than off screen)
+    const Lb = frameClamp(fw * 0.32, 26, u * 0.38), hb = Math.max(4, head * 0.24), gap = Math.max(4, head * 0.28), ty = Math.max(top - gap - hb / 2, hb * 0.6 + 2);
+    const pa = frameLerp(1.2, 0.8, amb), rp = frameTune(FRAME_RAMP.brass, frameLerp(0.64, 1, amb), null, 0);
+    // the pool of light: brightest under the hood, easing out over the moulding and the mat
+    const pool = (mode, a, rx, ry) => {
+      c.save(); c.globalCompositeOperation = mode; c.translate(cx, ty + hb * 0.5); c.scale(1, ry / rx);
       c.fillStyle = rad(c, 0, 0, rx, [[0, `rgba(255,212,148,${a})`], [0.2, `rgba(255,208,142,${a * 0.68})`], [0.5, `rgba(255,200,130,${a * 0.28})`], [0.78, `rgba(255,196,124,${a * 0.07})`], [1, 'rgba(255,196,124,0)']]);
       c.fillRect(-rx, 0, rx * 2, rx); c.restore();
     };
-    c.save(); c.globalCompositeOperation = 'lighter';
-    c.save(); c.beginPath(); c.rect(...ring); c.rect(...mat); c.clip('evenodd'); pool(0.42, fw * 0.6, fh * 0.3); c.restore();
-    c.save(); c.beginPath(); c.rect(...mat); c.clip(); pool(0.07, fw * 0.62, fh * 0.55); c.restore();
-    c.save(); c.translate(cx, ty + tb * 0.5); c.scale(Lb * 0.012, head * 0.018); light(c, 0, 0, 60, '255,206,140', 0.3); c.restore();
+    c.save(); c.beginPath(); c.rect(...ring); c.rect(...mat); c.clip('evenodd');
+    pool('soft-light', Math.min(1, 0.85 * pa), fw * 0.62, fh * 0.34); pool('lighter', 0.14 * pa, fw * 0.5, fh * 0.26);
     c.restore();
-    // the fixture
-    const brass = (x0, y0, x1, y1) => { const g = c.createLinearGradient(x0, y0, x1, y1); [[0, '#3a2a10'], [0.22, '#b48f48'], [0.42, '#f2dc98'], [0.62, '#b8923f'], [1, '#4a3512']].forEach(([t, col]) => g.addColorStop(t, col)); return g; };
-    const sw = Math.max(2, tb * 0.42);
-    c.fillStyle = brass(cx - sw, 0, cx + sw, 0); c.fillRect(cx - sw / 2, ty, sw, top - ty);
-    c.fillStyle = brass(0, top - tb * 0.45, 0, top + 1); rrect(c, cx - tb * 0.95, top - tb * 0.5, tb * 1.9, tb * 0.6, 1); c.fill();
-    c.save(); c.shadowColor = 'rgba(0,0,0,.45)'; c.shadowBlur = tb * 1.1 * k; c.shadowOffsetX = sx * 0.3 * k; c.shadowOffsetY = Math.max(2, sy * 0.45) * k;
-    c.fillStyle = brass(0, ty - tb / 2, 0, ty + tb / 2); rrect(c, cx - Lb / 2, ty - tb / 2, Lb, tb, tb / 2); c.fill(); c.restore();
-    for (const e of [-1, 1]) { // end caps
-      c.fillStyle = brass(0, ty - tb / 2, 0, ty + tb / 2); rrect(c, cx + e * (Lb / 2 - tb * 0.55) - tb * 0.28, ty - tb * 0.56, tb * 0.56, tb * 1.12, tb * 0.2); c.fill();
+    c.save(); c.beginPath(); c.rect(...mat); c.clip(); pool('lighter', 0.06 * pa, fw * 0.62, fh * 0.55); c.restore();
+    // a little of the light escapes round the hood onto the wall
+    c.save(); c.globalCompositeOperation = 'lighter'; c.translate(cx, ty + hb * 0.3); c.scale(Lb * 0.012, head * 0.017); light(c, 0, 0, 60, '255,206,140', 0.26 * pa); c.restore();
+    // the fixture: brass shaded as a cylinder across (st: [offset, value] from one side to the other)
+    const brass = (x0, y0, x1, y1, st) => { const g = c.createLinearGradient(x0, y0, x1, y1); for (const [t, v] of st) g.addColorStop(t, frameRgb(rp, v)); return g; };
+    const ROD = [[0, 0.12], [0.3, 0.62], [0.45, 0.92], [0.62, 0.55], [1, 0.1]];
+    const HOOD = [[0, 0.3], [0.16, 0.66], [0.3, 0.97], [0.44, 0.7], [0.72, 0.42], [0.9, 0.3], [1, 0.55]];
+    const sw = Math.max(2, hb * 0.3), py = top - Math.max(1.5, hb * 0.16), ph = Math.max(2.5, hb * 0.42);
+    // the arm, from behind the hood down to a small plate gripping the moulding's top edge
+    if (py - ty > hb * 0.6) {
+      c.fillStyle = brass(cx - sw / 2, 0, cx + sw / 2, 0, ROD); c.fillRect(cx - sw / 2, ty, sw, py - ty + 1);
+      c.save(); c.shadowColor = 'rgba(0,0,0,.35)'; c.shadowBlur = Math.max(1, hb * 0.25) * k; c.shadowOffsetY = Math.max(1, hb * 0.12) * k;
+      c.fillStyle = brass(0, py, 0, py + ph, HOOD); rrect(c, cx - hb * 0.85, py, hb * 1.7, ph, Math.min(2, ph * 0.3)); c.fill(); c.restore();
     }
-    c.fillStyle = 'rgba(255,238,196,.92)'; c.fillRect(cx - Lb / 2 + tb * 1.1, ty + tb * 0.34, Lb - tb * 2.2, Math.max(0.8, tb * 0.13));
+    // the hood, with its soft shadow on the wall
+    c.save(); c.shadowColor = 'rgba(0,0,0,.42)'; c.shadowBlur = hb * 0.9 * k; c.shadowOffsetX = sx * 0.3 * k; c.shadowOffsetY = Math.max(2, sy * 0.4) * k;
+    c.fillStyle = brass(0, ty - hb / 2, 0, ty + hb / 2, HOOD); rrect(c, cx - Lb / 2, ty - hb / 2, Lb, hb, hb * 0.32); c.fill(); c.restore();
+    // its lit slot: the bulb's light seen under the hood's lip, fading toward the ends
+    const sh = Math.max(1, hb * 0.17), sy0 = ty + hb / 2 - sh * 0.9;
+    const sg = c.createLinearGradient(cx - Lb / 2, 0, cx + Lb / 2, 0);
+    for (const [t, a] of [[0, 0], [0.07, 0.95], [0.5, 1], [0.93, 0.95], [1, 0]]) sg.addColorStop(t, `rgba(255,${t === 0.5 ? '248,226' : '240,206'},${a})`);
+    c.fillStyle = sg; c.fillRect(cx - Lb / 2 + hb * 0.3, sy0, Lb - hb * 0.6, sh);
+    // the end caps: discs a little wider than the hood, seen edge on
+    const cw = Math.max(2, hb * 0.34);
+    for (const e of [-1, 1]) {
+      c.fillStyle = brass(cx + e * Lb / 2 - cw / 2, 0, cx + e * Lb / 2 + cw / 2, 0, ROD); rrect(c, cx + e * (Lb / 2 - cw * 0.35) - cw / 2, ty - hb * 0.58, cw, hb * 1.16, cw * 0.4); c.fill();
+    }
   }
 
   SUPPORTS.frame = {
@@ -409,78 +598,113 @@
     edge: (u) => { const E = frameExt(u); return { t: E, r: E, b: E, l: E }; },
     draw(c, S, W, H, o) {
       const u = o.u, mini = o.mini, sc = o.scene, R = o.R;
-      const kind = sc === 'hearth' ? 'gilt' : sc === 'forest' || sc === 'alpes' ? 'raw' : sc === 'image' ? 'black' : 'walnut', K = FRAME_KIND[kind], rk = kind;
+      const kind = sc === 'hearth' ? 'gilt' : sc === 'forest' || sc === 'alpes' ? 'raw' : sc === 'image' ? 'black' : 'walnut', K = FRAME_KIND[kind];
       const E = frameExt(u), F = Math.max(mini ? 2.6 : 3, E * K.fw), m = E - F;
       const X0 = S.x - E, Y0 = S.y - E, X1 = S.x + S.w + E, Y1 = S.y + S.h + E, fw = X1 - X0, fh = Y1 - Y0, cx = S.x + S.w / 2, cy = S.y + S.h / 2;
       const mx0 = S.x - m, my0 = S.y - m, mx1 = S.x + S.w + m, my1 = S.y + S.h + m;
-      // the light: the scene's, or a soft one from the top left
-      const Lg = o.light;
-      let lx, ly, lr, rgb;
-      if (Lg) { lx = Lg.x; ly = Lg.y; lr = Lg.r; rgb = Lg.rgb; }
-      else if (mini && sc === 'hearth') { lx = X0 - u * 1.4; ly = cy + u * 0.3; lr = u * 3; rgb = '255,170,90'; }
-      else { lx = cx - u * 0.9; ly = Y0 - u * 1.1; lr = u * 2.6; rgb = '255,228,186'; }
-      const dl = Math.hypot(lx - cx, ly - cy) || 1, dx = (lx - cx) / dl, dy = (ly - cy) / dl;
+      // the scene around the frame (under: its average colour behind the text): how bright it is, 1 by day and near 0 in the
+      // night (the moulding then falls dark and only the scene's lamps bring it out), and its hue, which the shadows take a little
+      const un = o.under, ul = un ? 0.2126 * un[0] + 0.7152 * un[1] + 0.0722 * un[2] : 0.06;
+      const amb = un ? frameClamp((ul - 0.05) / 0.3, 0, 1) : 1, dim = frameLerp(K.night, 1, amb);
+      const tune = (rk) => frameTune(FRAME_RAMP[rk], dim, un, 0.05 + 0.13 * (1 - amb)), ramp = tune(kind);
+      // the lights: the day's, soft from the top left and as bright as the scene is; and the scene's own, spread wide and soft (a
+      // lamp close by, or a bright point far behind the frame, lights it evenly instead of leaving a hot spot), as strong as the
+      // scene makes it. Where they come from, together, decides which faces shine: the window by day, the fire at night.
+      const Lg = o.light, dlx = cx - u * 0.9, dly = Y0 - u * 1.1, dla = 0.3 * amb;
+      let lx, ly, lr, rgb, la;
+      if (Lg) {
+        lx = Lg.x; ly = Lg.y; lr = Math.max(Lg.r, u * 1.1); rgb = Lg.rgb; la = frameClamp(Lg.a, 0, 0.6) * Lg.r / lr;
+        // A lamp hidden behind the frame (its centre inside the frame's box: Paris's tower by night) cannot light the moulding's
+        // face: only a faint, even spill round its edges is kept, never a bright spot halfway up a side.
+        const bh = frameClamp(0.5 + Math.min(lx - X0, X1 - lx, ly - Y0, Y1 - ly) / (u * 0.06), 0, 1);
+        if (bh > 0) { la *= 1 - 0.8 * bh; lr = frameLerp(lr, u * 2.4, bh); }
+      }
+      else if (mini && sc === 'hearth') { lx = X0 - u * 1.4; ly = cy + u * 0.3; lr = u * 3; rgb = '255,170,90'; la = 0.34; }
+      else { lx = dlx; ly = dly; lr = u * 2.6; rgb = '255,228,186'; la = dla; }
+      const dl = Math.hypot(lx - cx, ly - cy) || 1, dd = Math.hypot(dlx - cx, dly - cy) || 1;
+      let dx = (lx - cx) / dl * la + (Lg ? (dlx - cx) / dd * dla : 0), dy = (ly - cy) / dl * la + (Lg ? (dly - cy) / dd * dla : 0);
+      const dn = Math.hypot(dx, dy);
+      if (dn > 1e-3) { dx /= dn; dy /= dn; } else { dx = (dlx - cx) / dd; dy = (dly - cy) / dd; }
       const NRM = [[0, -1], [1, 0], [0, 1], [-1, 0]];
       const lit = NRM.map(([nx, ny]) => frameClamp(0.85 * (nx * dx + ny * dy) + 0.3 * -ny, -1, 1)); // how much each outer face is lit
       const k = c.getTransform ? c.getTransform().a : 1;
       // wall shadow, thrown away from the light, tinted by what's behind
-      const un = o.under, ul = un ? 0.2126 * un[0] + 0.7152 * un[1] + 0.0722 * un[2] : 0.06;
       const shA = frameLerp(0.7, 0.5, frameClamp((ul - 0.15) / 0.5, 0, 1)), sg = un ? un.map((v) => Math.round(v * 255 * 0.08 + 3)) : [3, 2, 1];
       const sd = u * 0.02, sx = -dx * sd, sy = Math.max(-dy * sd * 0.8, sd * 0.45), shc = (a) => `rgba(${sg[0]},${sg[1]},${sg[2]},${a})`;
+      // The frame hangs from its cord and leans out a little at the top: its soft shadow falls farther from the top edge than
+      // from the bottom one, which rests on the wall (the shape is drawn out of sight; only its shadow lands). Then a tight one.
+      const OFF = W + fw + 200;
       c.save(); c.fillStyle = '#000';
-      c.shadowColor = shc(shA); c.shadowBlur = u * 0.042 * k; c.shadowOffsetX = sx * k; c.shadowOffsetY = sy * k; c.fillRect(X0, Y0, fw, fh);
+      c.shadowColor = shc(shA); c.shadowBlur = u * 0.042 * k; c.shadowOffsetX = OFF * k; c.shadowOffsetY = 0;
+      c.beginPath(); c.moveTo(X0 - OFF + sx * 1.4, Y0 + sy * 1.4); c.lineTo(X1 - OFF + sx * 1.4, Y0 + sy * 1.4); c.lineTo(X1 - OFF + sx * 0.55, Y1 + sy * 0.55); c.lineTo(X0 - OFF + sx * 0.55, Y1 + sy * 0.55); c.closePath(); c.fill();
       c.shadowColor = shc(shA * 0.8); c.shadowBlur = Math.max(1.5, u * 0.007) * k; c.shadowOffsetX = sx * 0.2 * k; c.shadowOffsetY = Math.max(1, sy * 0.3) * k; c.fillRect(X0, Y0, fw, fh);
       c.restore();
       const head = frameHead(u), lamp = (sc === 'hearth' || sc === 'nook') && !mini;
-      if (!lamp && !mini) frameCord(c, cx, Y0, fw, F, head * 0.62, u, ul > 0.4, sx, sy);
-      // the moulding, band by band, each side lit by how it faces the light
+      if (!lamp && !mini) frameCord(c, cx, Y0, fw, F, head * 0.62, u, ul > 0.4, sx, sy, frameLerp(0.45, 1, amb));
+      if (lamp) lit[0] = Math.max(lit[0], 0.75); // (the picture light, just above, lights the top length from above)
+      // the moulding, band by band, each side lit by how it faces the light (each side a length of its own, a shade apart)
       c.save(); c.beginPath(); c.rect(X0, Y0, fw, fh); c.rect(mx0, my0, mx1 - mx0, my1 - my0); c.clip('evenodd');
-      c.fillStyle = frameRgb(rk, 0.4); c.fillRect(X0, Y0, fw, fh);
-      const tot = K.prof.reduce((s, b) => s + b[0], 0);
-      let acc = 0, beadAt = null;
-      K.prof.forEach(([w, v0, t0, v1, t1], bi) => {
+      c.fillStyle = frameRgb(ramp, 0.4); c.fillRect(X0, Y0, fw, fh);
+      const tot = K.prof.reduce((s, b) => s + b[0], 0), sj = [0, 1, 2, 3].map(() => (R() - 0.5) * 2 * K.jit), ramps = { [kind]: ramp };
+      let acc = 0, beadAt = null, woodTo = F, prev = null;
+      const edges = []; // where two bands meet: a crease in a valley, a bright arris on a ridge
+      K.prof.forEach(([w, v0, t0, v1, t1, fin = 1, rk], bi) => {
         const a = acc / tot * F, b = (acc + w) / tot * F; acc += w;
         if (K.beads === bi) beadAt = [a, b];
+        if (rk && woodTo === F) woodTo = a; // (the grain stays on the wood, off the slip)
+        const rp = rk ? ramps[rk] || (ramps[rk] = tune(rk)) : ramp, gn = K.gain * (0.55 + 0.45 * fin), spec = K.spec * fin, hw = K.sheen || 0.1;
+        if (prev && Math.abs(t0 - prev[0]) > 0.5) edges.push([a, t0 > prev[0], (v0 + prev[1]) / 2, rk ? prev[2] : rp]);
+        prev = [t1, v1, rp];
         for (let s = 0; s < 4; s++) {
           const q = frameQuad(s, X0, Y0, X1, Y1, a, b), L = lit[s], g = c.createLinearGradient(...q.g), st = [];
-          const at = (f) => frameClamp(frameLerp(v0, v1, f) + frameLerp(t0, t1, f) * L * K.gain, 0, 1);
-          for (let i = 0; i <= 4; i++) st.push([i / 4, at(i / 4)]);
-          if (K.spec && t0 !== t1) { // a thin sheen where the roll turns toward the light
+          const at = (f) => frameClamp(frameLerp(v0, v1, f) + sj[s] + frameLerp(t0, t1, f) * L * gn, 0, 1);
+          for (let i = 0; i <= 6; i++) st.push([i / 6, at(i / 6)]);
+          if (spec && t0 !== t1) { // a thin sheen where the roll turns toward the light
             const f = (L * 0.75 - t0) / (t1 - t0);
-            if (f > 0.06 && f < 0.94) { const sp = K.spec * (0.45 + 0.55 * Math.abs(L)); st.push([f - 0.1, at(f - 0.1)], [f, frameClamp(at(f) + sp, 0, 1)], [f + 0.1, at(f + 0.1)]); }
+            if (f > hw * 0.6 && f < 1 - hw * 0.6) { const sp = spec * (0.45 + 0.55 * Math.abs(L)); st.push([f - hw, at(f - hw)], [f, frameClamp(at(f) + sp, 0, 1)], [f + hw, at(f + hw)]); }
           }
-          st.sort((p, r) => p[0] - r[0]).forEach(([f, v]) => g.addColorStop(frameClamp(f, 0, 1), frameRgb(rk, v)));
-
+          st.sort((p, r) => p[0] - r[0]).forEach(([f, v]) => g.addColorStop(frameClamp(f, 0, 1), frameRgb(rp, v)));
           frameFill(c, q, g);
         }
       });
-      if (beadAt && !mini && beadAt[1] - beadAt[0] >= 4.5) frameBeads(c, X0, Y0, X1, Y1, (beadAt[0] + beadAt[1]) / 2, (beadAt[1] - beadAt[0]) * 0.74, dx, dy);
-      if (K.grain && !mini) frameWood(c, X0, Y0, X1, Y1, F, K.grain, R, u);
+      if (beadAt && !mini && beadAt[1] - beadAt[0] >= 4.5) frameBeads(c, X0, Y0, X1, Y1, (beadAt[0] + beadAt[1]) / 2, (beadAt[1] - beadAt[0]) * 0.74, dx, dy, ramp);
+      if (K.grain && !mini) { c.save(); c.beginPath(); c.rect(X0, Y0, fw, fh); c.rect(X0 + woodTo, Y0 + woodTo, fw - 2 * woodTo, fh - 2 * woodTo); c.clip('evenodd'); frameWood(c, X0, Y0, X1, Y1, woodTo, K.grain, R, u, dim); c.restore(); }
+      if (!mini) { // the profile's edges, drawn fine: they are what makes it read as cut and moulded rather than painted
+        const ew = Math.max(0.6, F * 0.022);
+        for (const [a, valley, v, rp] of edges) for (let s = 0; s < 4; s++) {
+          frameFill(c, frameQuad(s, X0, Y0, X1, Y1, a - ew / 2, a + ew / 2), valley ? 'rgba(18,9,3,.34)' : frameRgb(rp, v + 0.2 + 0.18 * lit[s] + sj[s], 0.7));
+        }
+      }
       // mitre joints
       c.lineWidth = Math.max(0.6, u * 0.0009);
       for (const [ax, ay, bx, by] of [[X0, Y0, X0 + F, Y0 + F], [X1, Y0, X1 - F, Y0 + F], [X1, Y1, X1 - F, Y1 - F], [X0, Y1, X0 + F, Y1 - F]]) {
         c.strokeStyle = 'rgba(0,0,0,.3)'; c.beginPath(); c.moveTo(ax, ay); c.lineTo(bx, by); c.stroke();
-        c.strokeStyle = 'rgba(255,235,190,.07)'; c.beginPath(); c.moveTo(ax + 0.8, ay); c.lineTo(bx + 0.8, by); c.stroke();
+        c.strokeStyle = `rgba(255,235,190,${0.07 * dim})`; c.beginPath(); c.moveTo(ax + 0.8, ay); c.lineTo(bx + 0.8, by); c.stroke();
       }
-      // far from the light the moulding falls into shade; near it, it warms
-      const fg = c.createLinearGradient(cx + dx * fw * 0.5, cy + dy * fh * 0.5, cx - dx * fw * 0.5, cy - dy * fh * 0.5);
-      fg.addColorStop(0, 'rgba(0,0,0,0)'); fg.addColorStop(1, `rgba(0,0,0,${kind === 'black' ? 0.2 : 0.32})`);
+      // far from the light the moulding falls into shade (a warm one: gold and wood in shade go deep brown, not grey-olive)
+      const fg = c.createLinearGradient(cx + dx * fw * 0.5, cy + dy * fh * 0.5, cx - dx * fw * 0.5, cy - dy * fh * 0.5), fc = kind === 'black' ? '0,0,0' : kind === 'gilt' ? '48,22,4' : '22,10,3';
+      fg.addColorStop(0, `rgba(${fc},0)`); fg.addColorStop(1, `rgba(${fc},${kind === 'black' ? 0.2 : 0.32})`);
       c.fillStyle = fg; c.fillRect(X0, Y0, fw, fh);
       if (kind === 'gilt' && !mini) { // old gilding: the corners darkened by age, a few rubbed specks
         for (const [px, py] of [[X0, Y0], [X1, Y0], [X1, Y1], [X0, Y1]]) { c.fillStyle = rad(c, px, py, F * 2.4, [[0, 'rgba(46,26,8,.3)'], [1, 'rgba(46,26,8,0)']]); c.fillRect(px - F * 2.4, py - F * 2.4, F * 4.8, F * 4.8); }
-        for (let i = 0; i < 70; i++) { const px = X0 + R() * fw, py = Y0 + R() * fh, r = 0.6 + R() * 1.8; c.fillStyle = R() < 0.7 ? 'rgba(60,34,10,.16)' : 'rgba(255,236,180,.1)'; c.beginPath(); c.arc(px, py, r, 0, TAU); c.fill(); }
+        for (let i = 0; i < 70; i++) { const px = X0 + R() * fw, py = Y0 + R() * fh, r = 0.6 + R() * 1.8; c.fillStyle = R() < 0.7 ? 'rgba(60,34,10,.16)' : `rgba(255,236,180,${0.1 * dim})`; c.beginPath(); c.arc(px, py, r, 0, TAU); c.fill(); }
       }
-      frameGlow(c, lx, ly, lr, rgb, kind === 'black' ? 0.2 : 0.34);
-      if (!mini) grain(c, W, H, kind === 'raw' ? 0.14 : 0.08);
+      const gk = kind === 'black' ? 0.6 : 1, box = [X0, Y0, X1, Y1];
+      frameGlow(c, lx, ly, lr, rgb, la * gk * 1.5, 'soft-light', box); frameGlow(c, lx, ly, lr, rgb, la * gk * 0.3, 'lighter', box);
+      if (Lg) { frameGlow(c, dlx, dly, u * 2.6, '255,228,186', dla * gk * 1.5, 'soft-light', box); frameGlow(c, dlx, dly, u * 2.6, '255,228,186', dla * gk * 0.3, 'lighter', box); }
+      if (!mini) grain(c, W, H, kind === 'raw' ? 0.14 : kind === 'gilt' ? 0.05 : 0.08); // (gold leaf is smooth: less of it)
       c.restore();
-      // the mat: a board with a lighter sheet seen through the bevelled opening. In the reading colours, the sheet takes the
-      // background and the board a breath off it (darker on a light ground, lighter on a dark one); the bevel shows its core.
-      const bi = mini ? 1.6 : frameClamp(u * 0.0155, 8, 15), bw = mini ? 1 : frameClamp(u * 0.0026, 1.4, 2.4);
+      // the mat: a thick board, bevelled round an opening just outside the text area (the text fades out on the sheet, never
+      // over the board), with a lighter sheet seen through it. In the reading colours, the sheet takes the background and the
+      // board a breath off it (darker on a light ground, lighter on a dark one); the bevel shows its core. In the small previews
+      // the opening stays a little inside the text area, so the board still shows round the lines.
+      const bw = mini ? 1 : frameClamp(u * 0.0034, 1.6, 3.4), oe = mini ? -1.6 : bw;
       const tone = o.bg ? toneOf(o.bg) : null, matSheet = tone ? tone.p : null;
-      const matBoard = tone ? mixRGB(tone.p, tone.dark ? [255, 250, 240] : [70, 52, 30], tone.dark ? 0.05 : 0.06) : null;
+      const bd = tone && tone.dark ? 1 : frameLerp(0.93, 1, amb); // (the board a little dimmer at night; the sheet keeps its tone)
+      const matBoard = (tone ? mixRGB(tone.p, tone.dark ? [255, 250, 240] : [70, 52, 30], tone.dark ? 0.05 : 0.06) : K.mat[0].split(',').map(Number)).map((v) => v * bd);
       const matSh = tone && tone.dark ? '0,0,0' : '50,32,14', matShK = tone && tone.dark ? 1.7 : 1;
       c.save(); c.beginPath(); c.rect(mx0, my0, mx1 - mx0, my1 - my0); c.clip();
-      c.fillStyle = matBoard ? rgbCss(matBoard) : `rgb(${K.mat[0]})`; c.fillRect(mx0, my0, mx1 - mx0, my1 - my0);
+      c.fillStyle = rgbCss(matBoard); c.fillRect(mx0, my0, mx1 - mx0, my1 - my0);
       // the frame's shadow on the mat, strongest under the sides that face the light
       const sl = Math.max(2, m * 1.05);
       for (let s = 0; s < 4; s++) {
@@ -489,30 +713,33 @@
         g.addColorStop(0, `rgba(${matSh},${a})`); g.addColorStop(1, `rgba(${matSh},0)`); c.fillStyle = g;
         c.fillRect(s === 1 ? mx1 - sl : mx0, s === 2 ? my1 - sl : my0, s % 2 ? sl : mx1 - mx0, s % 2 ? my1 - my0 : sl);
       }
-      const ox = S.x + bi, oy = S.y + bi, ow = S.w - bi * 2, oh = S.h - bi * 2;
+      const ox = S.x - oe, oy = S.y - oe, ow = S.w + oe * 2, oh = S.h + oe * 2;
       c.fillStyle = matSheet ? rgbCss(matSheet) : `rgb(${K.mat[1]})`; c.fillRect(ox, oy, ow, oh);
-      // the cut: a bright core where it faces the light, a shaded one opposite, and a hairline on the board's edge
+      // the cut, a 45° bevel facing in: lit on the sides opposite the light (the bottom one under a light from above), shaded
+      // on the sides that face it, which also throw a breath of shadow on the sheet; its crest a fine line, light or dark
       const coreLit = tone ? mixRGB(tone.p, [255, 252, 244], tone.dark ? 0.3 : 0.62) : [255, 251, 240];
       const coreSh = tone ? mixRGB(tone.p, tone.dark ? [255, 252, 244] : [120, 100, 70], tone.dark ? 0.1 : 0.14) : [226, 215, 192];
       for (let s = 0; s < 4; s++) {
-        const q = frameQuad(s, ox, oy, ox + ow, oy + oh, 0, bw), f = frameClamp(0.5 - 0.5 * lit[s] * 1.4 + 0.1, 0, 1);
-        frameFill(c, q, rgbCss(mixRGB(coreLit, coreSh, f)));
-      }
-      c.lineWidth = mini ? 0.5 : 0.8; c.strokeStyle = 'rgba(80,58,34,.3)'; c.strokeRect(ox - 0.4, oy - 0.4, ow + 0.8, oh + 0.8);
-      if (!mini) { // a breath of shadow under the cut, on the sheet
-        for (const s of [0, 3]) {
-          const g = s === 0 ? c.createLinearGradient(0, oy + bw, 0, oy + bw + 5) : c.createLinearGradient(ox + bw, 0, ox + bw + 5, 0);
-          g.addColorStop(0, 'rgba(70,48,24,.1)'); g.addColorStop(1, 'rgba(70,48,24,0)'); c.fillStyle = g;
-          if (s === 0) c.fillRect(ox + bw, oy + bw, ow - bw * 2, 5); else c.fillRect(ox + bw, oy + bw, 5, oh - bw * 2);
+        const L = lit[s], f = frameClamp(0.45 + 0.7 * L, 0, 1);
+        frameFill(c, frameQuad(s, ox, oy, ox + ow, oy + oh, 0, bw), rgbCss(mixRGB(coreLit, coreSh, f)));
+        frameFill(c, frameQuad(s, ox, oy, ox + ow, oy + oh, 0, mini ? 0.5 : 0.7), L > 0 ? `rgba(${matSh},${(0.1 + 0.16 * L) * matShK})` : `rgba(255,253,246,${(tone && tone.dark ? 0.22 : 0.5) * -L})`);
+        if (!mini && L > 0.05) {
+          const g = c.createLinearGradient(...frameQuad(s, ox + bw, oy + bw, ox + ow - bw, oy + oh - bw, 0, 5).g);
+          g.addColorStop(0, `rgba(${matSh},${0.11 * L * matShK})`); g.addColorStop(1, `rgba(${matSh},0)`);
+          frameFill(c, frameQuad(s, ox + bw, oy + bw, ox + ow - bw, oy + oh - bw, 0, 5), g);
         }
       }
       // light across the board: a little warmer near the light, a little deeper opposite; a very fine paper grain
       const pg = c.createLinearGradient(cx + dx * S.w * 0.6, cy + dy * S.h * 0.6, cx - dx * S.w * 0.6, cy - dy * S.h * 0.6);
       pg.addColorStop(0, 'rgba(255,246,228,.06)'); pg.addColorStop(1, 'rgba(70,48,26,.06)'); c.fillStyle = pg; c.fillRect(mx0, my0, mx1 - mx0, my1 - my0);
-      frameGlow(c, lx, ly, lr, rgb, sc === 'hearth' ? 0.05 : 0.03);
+      frameGlow(c, lx, ly, lr, rgb, la * (sc === 'hearth' ? 0.16 : 0.1), 'lighter', [mx0, my0, mx1, my1]);
+      if (lamp && amb < 1) { // at night the picture light is what lights the mat: it eases off toward the bottom
+        const g = c.createLinearGradient(0, my0 + (my1 - my0) * 0.3, 0, my1);
+        g.addColorStop(0, 'rgba(40,24,10,0)'); g.addColorStop(1, `rgba(40,24,10,${0.07 * (1 - amb)})`); c.fillStyle = g; c.fillRect(mx0, my0, mx1 - mx0, my1 - my0);
+      }
       if (!mini) grain(c, W, H, 0.035);
       c.restore();
-      if (lamp) frameLamp(c, cx, Y0, fw, fh, head, u, k, sx, sy, [X0, Y0, fw, fh], [mx0, my0, mx1 - mx0, my1 - my0]);
+      if (lamp) frameLamp(c, cx, Y0, fw, fh, head, u, k, sx, sy, [X0, Y0, fw, fh], [mx0, my0, mx1 - mx0, my1 - my0], amb);
     },
   };
   /* support:frame:end */
@@ -565,8 +792,9 @@
     c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
   }
   // The outline of the page block grown by (ox, oy): the top and bottom edges sink toward the spine, as the paper curves down into it.
+  // Paper is cut square: the corners keep only the hair of rounding that handling gives them.
   function bookStack(c, p, ox, oy) {
-    const { x0, y0, x1, y1, gx, gw, dip, two } = p, r = 1 + Math.max(ox, oy) * 0.35, xl = two ? x0 - ox : x0, xr = x1 + ox;
+    const { x0, y0, x1, y1, gx, gw, dip, two } = p, r = 0.6 + Math.max(ox, oy) * 0.1, xl = two ? x0 - ox : x0, xr = x1 + ox;
     const bump = (x) => 1 - dip * Math.exp(-(((x - gx) / gw) ** 2));
     const ty = (x) => y0 - oy * bump(x), by = (x) => y1 + oy * bump(x);
     c.beginPath();
@@ -613,6 +841,125 @@
     c.drawImage(lc, ox, oy, lw, lh);
   }
 
+  // How lit the room is around the book, from the colour of the scene behind the text: 0 at night, 1 by day (and on the
+  // small previews, which have no scene behind them).
+  const bookDay = (un) => (un ? bookSm(0.035, 0.3, 0.2126 * un[0] + 0.7152 * un[1] + 0.0722 * un[2]) : 1);
+  // The dusk of the room over a part of the book: a dark veil of the scene's own hue (a night room is blue or brown).
+  const bookDusk = (un, k) => (un ? `rgba(${un[0] * 70 + 4 | 0},${un[1] * 70 + 4 | 0},${un[2] * 70 + 6 | 0},${k.toFixed(3)})` : `rgba(10,8,8,${k.toFixed(3)})`);
+  // The shadow the book throws on what holds it. Its wide, soft parts are painted on a small canvas (a quarter of the size:
+  // a blur that wide shows nothing finer, and costs much more at full size), then scaled up; the contact, tight around the
+  // boards, is painted at full size.
+  function bookShadow(c, W, H, d, b, r, sx, sy, u, col, sa, fill, mini) {
+    const [X, Y, w, h] = b, wide = [[0.11, 2.4, 0.5], [0.04, 1.1, 0.78]], near = [0.01, 0.28, 0.95];
+    c.save(); c.fillStyle = fill;
+    if (mini) { // the small previews: a few pixels, painted directly
+      for (const [bl, k, a] of [...wide, near]) {
+        c.shadowColor = `rgba(${col},${sa * a})`; c.shadowBlur = u * bl * d * 0.8; c.shadowOffsetX = sx * k * d; c.shadowOffsetY = sy * k * d;
+        c.beginPath(); bookPath(c, X, Y, w, h, r); c.fill();
+      }
+      c.restore(); return;
+    }
+    const q = 0.25, m = u * 0.26 + Math.hypot(sx, sy) * 2.6; // how far past the boards the shadow can reach
+    const rx0 = Math.max(0, Math.floor(X - m)), ry0 = Math.max(0, Math.floor(Y - m)), rx1 = Math.min(W, Math.ceil(X + w + m)), ry1 = Math.min(H, Math.ceil(Y + h + m));
+    if (rx1 > rx0 && ry1 > ry0) {
+      const ow = Math.ceil((rx1 - rx0) * q), oh = Math.ceil((ry1 - ry0) * q), oc = document.createElement('canvas'); oc.width = ow; oc.height = oh;
+      const g = oc.getContext('2d'), OFF = ow + 200; // the shape is drawn off the canvas: only its shadow falls on it
+      g.fillStyle = '#000';
+      for (const [bl, k, a] of wide) {
+        g.shadowColor = `rgba(${col},${sa * a})`; g.shadowBlur = u * bl * q; g.shadowOffsetX = OFF + sx * k * q; g.shadowOffsetY = sy * k * q;
+        g.beginPath(); bookPath(g, (X - rx0) * q - OFF, (Y - ry0) * q, w * q, h * q, r * q); g.fill();
+      }
+      c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'medium';
+      c.drawImage(oc, 0, 0, ow, oh, rx0, ry0, ow / q, oh / q);
+    }
+    c.shadowColor = `rgba(${col},${sa * near[2]})`; c.shadowBlur = u * near[0] * d; c.shadowOffsetX = sx * near[1] * d; c.shadowOffsetY = sy * near[1] * d;
+    c.beginPath(); bookPath(c, X, Y, w, h, r); c.fill();
+    c.restore();
+  }
+  // The leaves seen on the edges of the page block: n lines at uneven depths, most of them a shade darker, a few catching
+  // the light (seeded: a repaint draws the same ones).
+  function bookLeaves(n, R) {
+    const o = [];
+    for (let j = 1; j < n; j++) o.push([Math.min(0.97, Math.max(0.04, (j + (R() - 0.5) * 0.85) / n)), R(), R()]);
+    return o;
+  }
+  // The headband: the small roll of silk sewn at the head (s = -1) or the tail (s = 1) of the spine, seen between the two
+  // stacks of leaves where they sink into the fold. Two silks wound in turn (the ribbon's and a pale one), rounded by the
+  // light; its middle sinks a little toward the pages, as the spine does.
+  function bookHeadband(c, x, y, w, h, s, V, veil) {
+    const sag = h * 0.5, hw = w / 2, N = 18, mid = (t) => y - s * sag * (1 - t * t), th = (t) => h / 2 * Math.sqrt(Math.max(0, 1 - t ** 4));
+    const shape = () => {
+      c.beginPath();
+      for (let i = 0; i <= N; i++) { const t = -1 + 2 * i / N; c.lineTo(x + t * hw, mid(t) - th(t)); }
+      for (let i = N; i >= 0; i--) { const t = -1 + 2 * i / N; c.lineTo(x + t * hw, mid(t) + th(t)); }
+      c.closePath();
+    };
+    c.save();
+    c.shadowColor = 'rgba(10,6,3,.55)'; c.shadowBlur = h * 0.9; c.shadowOffsetY = s * h * 0.25; // it sits against the leaves
+    c.fillStyle = V.rib[0]; shape(); c.fill(); c.shadowColor = 'transparent';
+    c.clip();
+    const n = Math.max(5, Math.round(w / (h * 0.4))), sw = w / n, sl = h * 0.4; // the turns of silk, fine and a little slanted
+    for (let i = 0; i < n; i++) {
+      const xa = x - hw + i * sw;
+      c.fillStyle = i % 2 ? '#cbb68c' : V.rib[1];
+      c.beginPath(); c.moveTo(xa + sl, y - h * 1.6); c.lineTo(xa + sw * 0.92 + sl, y - h * 1.6); c.lineTo(xa + sw * 0.92 - sl, y + h * 1.6); c.lineTo(xa - sl, y + h * 1.6); c.closePath(); c.fill();
+    }
+    const yo = y + s * h * 0.6, yi = y - s * h * 0.6 - s * sag; // the outer side catches the light, the inner one is in the leaves' shade
+    const sg = c.createLinearGradient(0, yo, 0, yi);
+    sg.addColorStop(0, 'rgba(0,0,0,.4)'); sg.addColorStop(0.32, 'rgba(255,240,215,.16)'); sg.addColorStop(0.55, 'rgba(255,240,215,0)'); sg.addColorStop(1, 'rgba(0,0,0,.55)');
+    c.fillStyle = sg; c.fillRect(x - hw, y - h * 2, w, h * 4);
+    if (veil) { c.fillStyle = veil; c.fillRect(x - hw, y - h * 2, w, h * 4); }
+    c.restore();
+  }
+  // The ribbon of the open book: it comes up out of the fold (from between the leaves of another spread), lies along the
+  // fold, passes over the tail of the leaves and the board and hangs on what holds the book, cut in a swallow tail. Where it
+  // comes out of the fold it rises toward the eye from the crease's shade: narrower, darker. Flat satin: one colour, a soft
+  // sheen along it, barely darker selvedges; dimmer where it lies in the fold. Painted on its own small layer, with its shadow.
+  function bookSilk(c, d, V, q) {
+    const { x, ya, yEdge, yEnd, w, drift, sx, sy, mini, veil, fold } = q, hw = w / 2, notch = w * 0.7, skew = w * 0.12, k = mini ? 0.5 : 1;
+    const dive = Math.min(w * 5, (yEdge - ya) * 0.45), wf = (y) => 0.3 + 0.7 * bookSm(ya, ya + dive, y); // its width as it comes out
+    const cx = (y) => x + drift * bookSm(yEdge - 6, yEnd, y), P = [], pad = w * 2 + 12;
+    for (let y = ya; y < yEnd - skew; y += 3) P.push([cx(y), y]);
+    const ox = x - pad - Math.max(0, -drift), oy = ya - 4, lw = w * 4 + 24 + Math.abs(drift), lh = yEnd - ya + pad;
+    const lc = document.createElement('canvas'); lc.width = Math.ceil(lw * d); lc.height = Math.ceil(lh * d);
+    const l = lc.getContext('2d'); l.scale(d, d); l.translate(-ox, -oy);
+    const me = cx(yEnd), L = P.map((p) => [p[0] - hw * wf(p[1]), p[1]]), Rr = P.map((p) => [p[0] + hw * wf(p[1]), p[1]]);
+    const sil = () => {
+      l.beginPath(); l.moveTo(L[0][0], L[0][1]);
+      for (const p of L) l.lineTo(p[0], p[1]);
+      l.lineTo(me - hw, yEnd + skew); l.lineTo(me, yEnd - notch); l.lineTo(me + hw, yEnd - skew);
+      for (let i = Rr.length - 1; i >= 0; i--) l.lineTo(Rr[i][0], Rr[i][1]);
+      l.closePath();
+    };
+    // its shadow: tight where it lies on the paper; wider below the board's edge, where it falls from the board to the table
+    l.fillStyle = V.rib[1];
+    l.shadowColor = 'rgba(8,4,2,.42)'; l.shadowBlur = 1.6 * d * k; l.shadowOffsetX = sx * 0.1 * d; l.shadowOffsetY = sy * 0.1 * d; sil(); l.fill();
+    l.save(); l.beginPath(); l.rect(ox, yEdge - 2, lw, lh); l.clip();
+    l.shadowColor = 'rgba(8,4,2,.45)'; l.shadowBlur = (mini ? 1.5 : 6) * d; l.shadowOffsetX = sx * 0.55 * d; l.shadowOffsetY = sy * 0.55 * d; sil(); l.fill();
+    l.restore();
+    l.shadowColor = 'transparent'; l.save(); sil(); l.clip();
+    const line = (pts, off, lwd, col) => { l.beginPath(); pts.forEach((p, i) => (i ? l.lineTo(p[0] + off, p[1]) : l.moveTo(p[0] + off, p[1]))); l.lineWidth = lwd; l.strokeStyle = col; l.lineJoin = 'round'; l.stroke(); };
+    const lit = sx > 0 ? -1 : 1; // the sheen sits toward the light
+    line(P, lit * hw * 0.18, hw * 1.1, V.rib[2] + '55'); line(P, lit * hw * 0.3, hw * 0.3, 'rgba(255,236,226,.16)');
+    line(L, hw * 0.12, 0.7 * k, 'rgba(0,0,0,.22)'); line(Rr, -hw * 0.12, 0.7 * k, 'rgba(0,0,0,.26)'); // the selvedges
+    const gr = l.createLinearGradient(0, yEdge - w * 0.5, 0, yEdge + w * 0.9); // the bend over the edge of the board
+    gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(0.45, 'rgba(0,0,0,.3)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    l.fillStyle = gr; l.fillRect(ox, yEdge - w * 0.5, lw, w * 1.4);
+    if (fold > 0) { // in the fold it gets less light than the paper on either side, and none where it comes out of the crease
+      const fg = l.createLinearGradient(0, yEdge - w * 2, 0, yEdge); fg.addColorStop(0, `rgba(0,0,0,${fold})`); fg.addColorStop(1, 'rgba(0,0,0,0)');
+      l.fillStyle = fg; l.fillRect(ox, oy, lw, yEdge - oy);
+      const dg = l.createLinearGradient(0, ya, 0, ya + dive);
+      dg.addColorStop(0, 'rgba(0,0,0,.62)'); dg.addColorStop(0.45, 'rgba(0,0,0,.2)'); dg.addColorStop(1, 'rgba(0,0,0,0)');
+      l.fillStyle = dg; l.fillRect(ox, oy, lw, ya + dive - oy);
+    }
+    if (veil) { l.fillStyle = veil; l.fillRect(ox, oy, lw, lh); }
+    l.restore();
+    const fade = Math.min(8, dive * 0.3), mg = l.createLinearGradient(0, ya, 0, ya + fade); // (its tip is lost in the crease)
+    mg.addColorStop(0, 'rgba(0,0,0,0)'); mg.addColorStop(1, 'rgba(0,0,0,1)');
+    l.globalCompositeOperation = 'destination-in'; l.fillStyle = mg; l.fillRect(ox, oy, lw, lh);
+    c.drawImage(lc, ox, oy, lw, lh);
+  }
+
   SUPPORTS.book = {
     name: 'Livre', ink: (k) => (bookVariants[k] || bookVariants.base).ink,
     box: (W, H, u) => ({ top: H * 0.08, bottom: H * 0.11, side: u < 200 ? u * 0.045 : Math.max(18, u * 0.045), spread: true, gutter: u * 0.06 }),
@@ -627,26 +974,28 @@
       const bx0 = two ? x0 - ws : x0, bx1 = x1 + ws, by0 = y0 - wt, by1 = y1 + wt;
       const cx0 = two ? bx0 - cv : x0 - sp, cx1 = bx1 + cv, cy0 = by0 - cv, cy1 = by1 + cv, cr = mini ? 1 : Math.max(2, u * 0.006);
       const pad = mini ? S.w * 0.12 : S.w < 520 ? 22 : 44, F = pad * 0.68, lift = pad * 0.32;   // shading stays out of the text's margin
-      // light and shadow
+      // light and shadow: the scene's main light (or a high window on the left), the room's own light (night or day)
       const lt = o.light, lx = lt ? lt.x : W * 0.3, ly = lt ? lt.y : -H * 0.3, lrgb = lt ? lt.rgb : '255,236,205', la = lt ? lt.a : 0.12;
-      let dx = (cx0 + cx1) / 2 - lx, dy = (cy0 + cy1) / 2 - ly; const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
+      const bcx = (cx0 + cx1) / 2, bcy = (cy0 + cy1) / 2;
+      let dx = bcx - lx, dy = bcy - ly; const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
       const sx = dx * u * 0.012, sy = u * 0.014 + Math.max(0, dy) * u * 0.016;
-      const un = o.under, lum = un ? 0.2126 * un[0] + 0.7152 * un[1] + 0.0722 * un[2] : 0.5;
+      const un = o.under, lum = un ? 0.2126 * un[0] + 0.7152 * un[1] + 0.0722 * un[2] : 0.5, day = bookDay(un);
       const shc = un ? `${un[0] * 30 | 0},${un[1] * 26 | 0},${un[2] * 22 | 0}` : '16,11,8', sa = 0.3 + 0.34 * (1 - Math.min(1, lum * 1.15));
+      // the light's side across the spread (-1: from the left, 1: from the right), which turns the slopes of the fold to it or away
+      const side = Math.max(-1, Math.min(1, (lx - gx) / (W * 0.45)));
+      // in a dark room the boards and the ribbon fall into the dusk; the paper (what is read) only a little, unless the reader chose it
+      const coverVeil = 1 - day > 0.02 ? bookDusk(un, 0.42 * (1 - day)) : null, paperVeil = !o.bg && 1 - day > 0.02 ? bookDusk(un, 0.1 * (1 - day)) : null;
       const coverPath = () => { c.beginPath(); bookPath(c, cx0, cy0, cx1 - cx0, cy1 - cy0, cr); };
       const geo = { x0, y0, x1, y1, gx, gw: Math.max(g * 0.9, ws * 3), dip: 0.55, two };
 
       // 1. the shadow it casts on the surface behind: wide and soft, then tighter, then a contact line
-      c.save(); c.fillStyle = V.cover[2];
-      for (const [bl, k, a] of [[0.17, 3.4, 0.55], [0.07, 1.7, 0.8], [0.012, 0.3, 1]]) {
-        c.shadowColor = `rgba(${shc},${sa * a})`; c.shadowBlur = u * bl * d * (mini ? 0.8 : 1); c.shadowOffsetX = sx * k * d; c.shadowOffsetY = sy * k * d; coverPath(); c.fill();
-      }
-      c.restore();
+      bookShadow(c, W, H, d, [cx0, cy0, cx1 - cx0, cy1 - cy0], cr, sx, sy, u, shc, sa, V.cover[2], mini);
 
-      // 2. the cover boards: material, mottling, sheen from the light, bevel, a gilt hairline
+      // 2. the cover boards (the turn-ins of their leather or cloth, round the page block): material, mottling, the room's
+      // light, the lamp's sheen, the rounded edge of the board, a gilt or blind fillet
       c.save(); coverPath(); c.clip();
-      const gb = c.createLinearGradient(cx0, cy0, cx1, cy1);
-      gb.addColorStop(0, V.cover[0]); gb.addColorStop(0.5, V.cover[1]); gb.addColorStop(1, V.cover[2]);
+      const gb = c.createLinearGradient(bcx - dx * (cx1 - cx0) * 0.6, bcy - dy * (cy1 - cy0) * 0.6, bcx + dx * (cx1 - cx0) * 0.6, bcy + dy * (cy1 - cy0) * 0.6);
+      gb.addColorStop(0, V.cover[0]); gb.addColorStop(0.45, V.cover[1]); gb.addColorStop(1, V.cover[2]); // lit on the light's side
       c.fillStyle = gb; c.fillRect(cx0, cy0, cx1 - cx0, cy1 - cy0);
       if (!mini) {
         for (let i = 0; i < 16; i++) {                                              // slow mottling of the hide / cloth
@@ -655,6 +1004,7 @@
         }
         c.globalAlpha = V.texA; c.fillStyle = c.createPattern(bookTile(V.tex), 'repeat'); c.fillRect(cx0, cy0, cx1 - cx0, cy1 - cy0); c.globalAlpha = 1;
       }
+      if (coverVeil) { c.fillStyle = coverVeil; c.fillRect(cx0, cy0, cx1 - cx0, cy1 - cy0); }
       light(c, lx, ly, Math.max(u * 0.9, lt ? lt.r * 0.6 : 0), lrgb, la * (lt ? 0.26 : 0.9));        // soft sheen
       if (two) {                                                                   // the hinge, where the boards meet the spine
         const gw = Math.max(3, u * 0.008) * (mini ? 0.6 : 1), hg = c.createLinearGradient(gx - gw, 0, gx + gw, 0);
@@ -666,98 +1016,156 @@
         c.fillStyle = sg; c.fillRect(cx0, cy0, x0 - cx0, cy1 - cy0);
       }
       c.restore();
-      const bv = c.createLinearGradient(cx0, cy0, cx1, cy1);                       // bevel: lit edge up-left, shaded edge down-right
-      bv.addColorStop(0, 'rgba(255,232,196,.32)'); bv.addColorStop(0.5, 'rgba(255,232,196,.05)'); bv.addColorStop(1, 'rgba(0,0,0,.5)');
-      c.beginPath(); bookPath(c, cx0 + 0.5, cy0 + 0.5, cx1 - cx0 - 1, cy1 - cy0 - 1, cr); c.lineWidth = 1; c.strokeStyle = bv; c.stroke();
-      if (V.gilt && !mini && cv > 7) {
-        c.beginPath(); bookPath(c, cx0 + cv * 0.34, cy0 + cv * 0.34, cx1 - cx0 - cv * 0.68, cy1 - cy0 - cv * 0.68, cr * 0.7);
-        c.lineWidth = 0.8; c.strokeStyle = `rgba(${V.gilt},.5)`; c.stroke();
+      // the board's edge is rounded under its leather: a fine dark line where it falls away, inside it a soft light on the
+      // side turned to the light and a shade on the other
+      const lgx0 = bcx - dx * (cx1 - cx0) * 0.5, lgy0 = bcy - dy * (cy1 - cy0) * 0.5, lgx1 = bcx + dx * (cx1 - cx0) * 0.5, lgy1 = bcy + dy * (cy1 - cy0) * 0.5;
+      const bv = c.createLinearGradient(lgx0, lgy0, lgx1, lgy1), rk = 0.55 + 0.45 * day;
+      bv.addColorStop(0, `rgba(255,232,196,${0.3 * rk})`); bv.addColorStop(0.5, 'rgba(255,232,196,.04)'); bv.addColorStop(1, 'rgba(0,0,0,.4)');
+      c.beginPath(); bookPath(c, cx0 + 1.6, cy0 + 1.6, cx1 - cx0 - 3.2, cy1 - cy0 - 3.2, Math.max(1, cr - 1)); c.lineWidth = mini ? 0.6 : 1.6; c.strokeStyle = bv; c.stroke();
+      c.beginPath(); bookPath(c, cx0 + 0.4, cy0 + 0.4, cx1 - cx0 - 0.8, cy1 - cy0 - 0.8, cr); c.lineWidth = 0.8; c.strokeStyle = 'rgba(0,0,0,.42)'; c.stroke();
+      if (!mini && cv > 7) {
+        c.beginPath(); bookPath(c, cx0 + cv * 0.36, cy0 + cv * 0.36, cx1 - cx0 - cv * 0.72, cy1 - cy0 - cv * 0.72, cr * 0.7);
+        if (V.gilt) { // gold leaf: bright where it faces the light, dull on the far side
+          const gl = c.createLinearGradient(lgx0, lgy0, lgx1, lgy1);
+          gl.addColorStop(0, `rgba(${V.gilt},${0.75 * rk})`); gl.addColorStop(0.5, `rgba(${V.gilt},${0.45 * rk})`); gl.addColorStop(1, `rgba(${V.gilt},${0.3 * rk})`);
+          c.lineWidth = 0.9; c.strokeStyle = gl; c.stroke();
+        } else { // a blind fillet pressed into the cloth
+          c.lineWidth = 1; c.strokeStyle = 'rgba(0,0,0,.2)'; c.stroke();
+          c.beginPath(); bookPath(c, cx0 + cv * 0.36 + 0.7, cy0 + cv * 0.36 + 0.7, cx1 - cx0 - cv * 0.72, cy1 - cy0 - cv * 0.72, cr * 0.7); c.lineWidth = 0.6; c.strokeStyle = 'rgba(255,255,255,.07)'; c.stroke();
+        }
       }
 
-      // 3. the page block: contact shadow on the board, stacked page edges
-      const n = Math.max(2, Math.round(ws / (mini ? 0.5 : 1.4)));
+      // 3. the page block: contact shadow on the board, the leaves seen on its edges, darker where they sink into the fold
+      const n = Math.max(3, Math.round(ws / (mini ? 0.5 : 1.1)));
       c.save(); coverPath(); c.clip();
       c.fillStyle = V.edge; c.shadowColor = 'rgba(8,4,2,.6)'; c.shadowBlur = (mini ? 1.5 : 6) * d; c.shadowOffsetX = sx * 0.25 * d; c.shadowOffsetY = sy * 0.3 * d;
       bookStack(c, geo, ws, wt); c.fill(); c.restore();
       c.save(); bookStack(c, geo, ws, wt); c.clip();
       c.fillStyle = V.edge; c.fillRect(bx0 - 2, by0 - 2, bx1 - bx0 + 4, by1 - by0 + 4);
-      c.lineWidth = mini ? 0.35 : 0.6;
-      for (let j = 1; j <= n; j++) {
-        bookStack(c, geo, ws * j / n, wt * j / n);
-        c.strokeStyle = j % 2 ? `rgba(${V.sh},.3)` : `rgba(255,251,238,${V.dark ? 0.14 : 0.42})`; if (j === n) c.strokeStyle = `rgba(${V.sh},.5)`; c.stroke();
+      c.lineWidth = mini ? 0.35 : 0.55;
+      for (const [f, r1, r2] of mini ? bookLeaves(n, R).filter((e, i) => i % 2) : bookLeaves(n, R)) {
+        bookStack(c, geo, ws * f, wt * f);
+        c.strokeStyle = r1 < 0.7 ? `rgba(${V.sh},${(0.1 + 0.26 * r2).toFixed(3)})` : `rgba(255,251,238,${((V.dark ? 0.08 : 0.26) + 0.2 * r2 * (V.dark ? 0.3 : 1)).toFixed(3)})`; c.stroke();
       }
-      const sg2 = c.createLinearGradient(bx0, by0, bx1, by1);                      // the edge turns from lit to shaded
-      sg2.addColorStop(0, 'rgba(255,240,210,.14)'); sg2.addColorStop(1, `rgba(${V.sh},.2)`);
+      bookStack(c, geo, ws, wt); c.lineWidth = mini ? 0.8 : 2.4; c.strokeStyle = `rgba(${V.sh},.2)`; c.stroke(); // the block's edge turns away
+      c.lineWidth = mini ? 0.4 : 0.7; c.strokeStyle = `rgba(${V.sh},.5)`; c.stroke();
+      const sg2 = c.createLinearGradient(lgx0, lgy0, lgx1, lgy1);                  // the edges turned to the light, then away
+      sg2.addColorStop(0, 'rgba(255,240,210,.16)'); sg2.addColorStop(0.5, 'rgba(255,240,210,0)'); sg2.addColorStop(1, `rgba(${V.sh},.22)`);
       c.fillStyle = sg2; c.fillRect(bx0 - 2, by0 - 2, bx1 - bx0 + 4, by1 - by0 + 4);
+      if (two && !mini) {                                                          // the leaves sink into the fold, in its shade
+        const fw = Math.max(g * 0.9, ws * 3), fg = c.createLinearGradient(gx - fw, 0, gx + fw, 0);
+        fg.addColorStop(0, `rgba(${V.sh},0)`); fg.addColorStop(0.5, `rgba(${V.sh},.32)`); fg.addColorStop(1, `rgba(${V.sh},0)`);
+        c.fillStyle = fg; c.fillRect(gx - fw, by0 - 2, fw * 2, y0 - by0 + 3); c.fillRect(gx - fw, y1 - 1, fw * 2, by1 - y1 + 3);
+      }
+      if (V.gilt && V.tex === 'leather' && !V.dark && !mini) { // a fine leather binding has its head gilt: gold over the leaves' lines, bright toward the light
+        c.save(); c.beginPath(); c.rect(x0, by0 - 2, x1 - x0, y0 - by0 + 2); c.clip();
+        c.globalCompositeOperation = 'multiply'; c.fillStyle = '#d9ad62'; c.fillRect(x0, by0 - 2, x1 - x0, y0 - by0 + 2);
+        const gs = c.createLinearGradient(lgx0, 0, lgx1, 0);
+        gs.addColorStop(0, `rgba(255,218,150,${0.26 * rk})`); gs.addColorStop(0.5, `rgba(255,218,150,${0.08 * rk})`); gs.addColorStop(1, 'rgba(255,218,150,0)');
+        c.globalCompositeOperation = 'lighter'; c.fillStyle = gs; c.fillRect(x0, by0 - 2, x1 - x0, y0 - by0 + 2);
+        c.restore();
+      }
+      if (paperVeil) { c.fillStyle = bookDusk(un, 0.16 * (1 - day)); c.fillRect(bx0 - 2, by0 - 2, bx1 - bx0 + 4, by1 - by0 + 4); }
       c.fillStyle = V.paper; c.shadowColor = `rgba(${V.sh},.7)`; c.shadowBlur = (mini ? 1 : 4.5) * d; c.shadowOffsetX = sx * 0.12 * d; c.shadowOffsetY = sy * 0.2 * d; // the top sheet shades the edges below
       c.fillRect(x0, y0, x1 - x0, y1 - y0); c.restore();
 
-      // 4. the pages: paper, a faint grain, the lamp's warmth on the near side
+      // 4. the pages: paper, a faint grain, the room's light, the lamp's warmth on the near side
       c.save(); c.beginPath(); c.rect(x0, y0, x1 - x0, y1 - y0); c.clip();
       c.fillStyle = V.paper; c.fillRect(x0, y0, x1 - x0, y1 - y0);
       if (!mini) {
         grain(c, x1, y1, 0.05);
         if (V.dark) grain(c, x1, y1, 0.04); // overlay grain is faint on dark paper: a second pass
-        // each page is a hair darker on the spine side, a very broad falloff (a few percent) that never reaches the margin
-        const bw = Math.min(S.w * 0.45, u * 0.3);
-        for (const [pa, pb, side] of two ? [[L.x + L.w, L.x + L.w - bw, 1], [S.x, S.x + bw, 1]] : [[S.x, S.x + bw, 1]]) {
-          const bg = c.createLinearGradient(pa, 0, pb, 0); bg.addColorStop(0, `rgba(${V.sh},.06)`); bg.addColorStop(1, `rgba(${V.sh},0)`);
-          c.fillStyle = bg; c.fillRect(Math.min(pa, pb), y0, bw, y1 - y0);
+        // each page is a hair darker on the spine side, a very broad falloff (a few percent) from the fold itself (no step
+        // where the text area begins)
+        const bw = Math.min(S.w * 0.45, u * 0.3) + (two ? g / 2 : 0);
+        for (const pb of two ? [gx - bw, gx + bw] : [gx + bw]) {
+          const bg = c.createLinearGradient(gx, 0, pb, 0); bg.addColorStop(0, `rgba(${V.sh},.06)`); bg.addColorStop(1, `rgba(${V.sh},0)`);
+          c.fillStyle = bg; c.fillRect(Math.min(gx, pb), y0, bw, y1 - y0);
         }
       }
-      if (lt) light(c, lt.x, lt.y, lt.r * 0.8, lt.rgb, lt.a * 0.1);
-      // the outer sides lift a little: a thin bright rim, softly fading inward
-      const rk = V.dark ? 0.4 : 1, rim = (xa, ya, xb, yb, w2) => { const rg = c.createLinearGradient(xa, ya, xb, yb); rg.addColorStop(0, 'rgba(255,251,238,0)'); rg.addColorStop(0.82, `rgba(255,251,238,${0.16 * rk})`); rg.addColorStop(1, `rgba(255,253,244,${0.5 * rk})`); c.fillStyle = rg; return rg; };
+      if (paperVeil) { c.fillStyle = paperVeil; c.fillRect(x0, y0, x1 - x0, y1 - y0); }
+      if (lt && lt.a > 0.004 && !mini) { // the light of the scene on the paper: one broad, even falloff, never a spot
+        const pr = Math.max(lt.r * 1.5, u * 1.25), a0 = lt.a * (V.dark ? 0.05 : 0.13), pg = c.createRadialGradient(lt.x, lt.y, 0, lt.x, lt.y, pr);
+        for (let i = 0; i <= 10; i++) { const s = i / 10; pg.addColorStop(s, `rgba(${lt.rgb},${(a0 * Math.exp(-2.6 * s * s) * (1 - s * s)).toFixed(4)})`); }
+        c.globalCompositeOperation = 'lighter'; c.fillStyle = pg; c.fillRect(x0, y0, x1 - x0, y1 - y0); c.globalCompositeOperation = 'source-over';
+      }
+      // the outer sides curve down onto the leaves below: a soft shade, then the thin bright edge of the sheet
+      const rk2 = V.dark ? 0.4 : 1, rim = (xa, ya, xb, yb) => { const rg = c.createLinearGradient(xa, ya, xb, yb); rg.addColorStop(0, 'rgba(255,251,238,0)'); rg.addColorStop(0.55, `rgba(${V.sh},${0.035 * rk2})`); rg.addColorStop(0.86, `rgba(255,251,238,${0.1 * rk2})`); rg.addColorStop(1, `rgba(255,253,244,${0.42 * rk2})`); return rg; };
       const lw = Math.max(1, lift);
       c.fillStyle = rim(x1 - lw, 0, x1, 0); c.fillRect(x1 - lw, y0, lw, y1 - y0);
       if (two) { c.fillStyle = rim(x0 + lw, 0, x0, 0); c.fillRect(x0, y0, lw, y1 - y0); }
-      c.fillStyle = rim(0, y0 + lw, 0, y0); c.fillRect(x0, y0, x1 - x0, lw);
-      c.fillStyle = rim(0, y1 - lw, 0, y1); c.fillRect(x0, y1 - lw, x1 - x0, lw);
+      const hw2 = lw * 0.5; // (head and tail: the sheet lies flat there, only its edge shows)
+      c.fillStyle = rim(0, y0 + hw2, 0, y0); c.fillRect(x0, y0, x1 - x0, hw2);
+      c.fillStyle = rim(0, y1 - hw2, 0, y1); c.fillRect(x0, y1 - hw2, x1 - x0, hw2);
       c.restore();
 
-      // 5. the ribbon, from the crease
-      const rw = mini ? Math.max(1.5, u * 0.025) : Math.max(6.5, u * 0.0125);
-      bookRibbon(c, d, V, { x: two ? gx : x0 + rw * 0.8 + 2, ya: y1 - Math.min(S.h * 0.2, 150 * u / 900 + 20), yEdge: cy1, yEnd: cy1 + (mini ? u * 0.05 : Math.max(26, u * 0.072)), w: rw, drift: (sx >= 0 ? 1 : -1) * rw * 0.9, sx, sy, u, mini });
-
-      // 6. the paper curving into the spine: darker toward the fold, a faint crest of light before it
+      // 5. the paper curving into the spine (or the rolled spine, on one page). Each page rises out of the fold: its slope
+      // there turns to the light on one side and away from it on the other, and the fold itself gets little light. The
+      // shading is worked out across the fold from that shape, and ends in a smooth zero before the text's margin.
       const h1 = g / 2, Hw = two ? h1 + F : F, lwid = Math.ceil(Hw * (two ? 2 : 1) * d), lhei = Math.ceil((y1 - y0) * d);
       if (lwid > 0 && lhei > 0) {
         const lc = document.createElement('canvas'); lc.width = lwid; lc.height = lhei; const l = lc.getContext('2d'); l.scale(d, d);
-        const wL = lwid / d, hL = lhei / d, N = 28;
-        const hwd = Hw, end = (t) => 1 - bookSm(0.62, 1, t / hwd);
-        const dark = (t) => two ? 0.36 * Math.exp(-Math.pow(t / (hwd * 0.56), 2)) * end(t) : 0.4 * Math.exp(-Math.pow(t / (F * 0.5), 2)) * end(t);
-        const crest = (t) => { const e = (t - (h1 + F * 0.42)) / (F * 0.32); return t > h1 - F * 0.1 ? 0.1 * Math.pow(Math.max(0, 1 - e * e), 2) : 0; };
-        for (const hi of [true, false]) {
-          const lg = l.createLinearGradient(0, 0, wL, 0);
-          for (let i = 0; i <= N; i++) {
-            const p = i / N, t = two ? Math.abs(p * 2 - 1) * Hw : p * F, a = hi ? crest(t) : dark(t);
-            lg.addColorStop(p, hi ? `rgba(255,250,236,${a})` : `rgba(${V.sh},${a})`);
-          }
-          l.fillStyle = lg; l.fillRect(0, 0, wL, hL);
+        const wL = lwid / d, hL = lhei / d, N = mini ? 16 : 40;
+        const tau = Hw * 0.26, z0 = 1.3, hx = side * 0.42, hz = Math.sqrt(1 - hx * hx), ao = mini ? 0.3 : 0.36;
+        // the light a point of the page gets, against the flat paper's: s = 1 on the right page, -1 on the left
+        const bright = (t, s) => {
+          const z = z0 * Math.exp(-t / tau), nn = Math.sqrt(1 + z * z), lam = (-s * z * hx + hz) / (nn * hz);
+          const occ = 1 - ao * Math.exp(-t / (tau * 0.22)) - 0.1 * Math.exp(-t / (tau * 1.3));
+          return 1 + (lam * occ - 1) * (1 - bookSm(0.62, 1, t / Hw));
+        };
+        const dk = l.createLinearGradient(0, 0, wL, 0), hi = l.createLinearGradient(0, 0, wL, 0);
+        for (let i = 0; i <= N; i++) {
+          const p = i / N, s = two ? (p < 0.5 ? -1 : 1) : 1, t = two ? Math.abs(p * 2 - 1) * Hw : p * F, b = bright(t, s);
+          dk.addColorStop(p, `rgba(${V.sh},${Math.max(0, 1 - b).toFixed(4)})`);
+          hi.addColorStop(p, `rgba(255,250,236,${(Math.max(0, b - 1) * (V.dark ? 0.35 : 1.2)).toFixed(4)})`);
         }
-        if (two && !mini) {                                                          // the crease itself
-          const cg = l.createLinearGradient(wL / 2 - 2.5, 0, wL / 2 + 2.5, 0);
-          cg.addColorStop(0, 'rgba(255,248,230,0)'); cg.addColorStop(0.3, 'rgba(255,248,230,.07)'); cg.addColorStop(0.5, 'rgba(28,16,6,.3)'); cg.addColorStop(0.7, 'rgba(255,248,230,.05)'); cg.addColorStop(1, 'rgba(255,248,230,0)');
-          l.fillStyle = cg; l.fillRect(wL / 2 - 2.5, 0, 5, hL);
+        l.fillStyle = dk; l.fillRect(0, 0, wL, hL); l.fillStyle = hi; l.fillRect(0, 0, wL, hL);
+        if (two && !mini) {                                                          // the crease itself: a hairline where the leaves meet
+          const cg = l.createLinearGradient(wL / 2 - 1.6, 0, wL / 2 + 1.6, 0);
+          cg.addColorStop(0, `rgba(${V.sh},0)`); cg.addColorStop(0.5, `rgba(${V.sh},.28)`); cg.addColorStop(1, `rgba(${V.sh},0)`);
+          l.fillStyle = cg; l.fillRect(wL / 2 - 1.6, 0, 3.2, hL);
         }
-        if (!mini) {                                                                 // lighter toward the ends of the block
+        if (!mini) {                                                                 // lighter toward the head and the tail, open to the room
           const e = Math.min(48, hL * 0.12), vg = l.createLinearGradient(0, 0, 0, hL);
-          vg.addColorStop(0, 'rgba(0,0,0,.5)'); vg.addColorStop(e / hL, 'rgba(0,0,0,1)'); vg.addColorStop(1 - e / hL, 'rgba(0,0,0,1)'); vg.addColorStop(1, 'rgba(0,0,0,.5)');
+          vg.addColorStop(0, 'rgba(0,0,0,.55)'); vg.addColorStop(e / hL, 'rgba(0,0,0,1)'); vg.addColorStop(1 - e / hL, 'rgba(0,0,0,1)'); vg.addColorStop(1, 'rgba(0,0,0,.55)');
           l.globalCompositeOperation = 'destination-in'; l.fillStyle = vg; l.fillRect(0, 0, wL, hL);
         }
         c.drawImage(lc, two ? gx - Hw : x0, y0, wL, hL);
       }
+
+      // 6. the headbands at the two ends of the spine, then the ribbon, out of the fold and over the tail
+      if (two && !mini) {
+        const hbw = Math.min(g * 0.5, ws * 2), hbh = Math.max(2.2, wt * 0.36), yo = wt * (1 - geo.dip) + hbh * 0.3;
+        bookHeadband(c, gx, y0 - yo, hbw, hbh, -1, V, coverVeil);
+        bookHeadband(c, gx, y1 + yo, hbw, hbh, 1, V, coverVeil);
+      }
+      const rw = mini ? Math.max(1.5, u * 0.025) : Math.max(6.5, u * 0.0125);
+      bookSilk(c, d, V, { x: two ? gx : x0 + rw * 0.8 + 2, ya: y1 - Math.min(S.h * 0.2, 150 * u / 900 + 20), yEdge: cy1, yEnd: cy1 + (mini ? u * 0.05 : Math.max(26, u * 0.072)), w: rw, drift: (sx >= 0 ? 1 : -1) * rw * 0.9, sx, sy, u, mini, veil: coverVeil, fold: mini ? 0 : two ? 0.16 : 0.08 });
     },
   };
   /* support:book:end */
 
   /* support:screen:start */
-  // A tablet / e-reader held upright, in night mode. The display is the text area; the object is a black-glass face in a thin
-  // metal rim (graphite in the dark, warm titanium over a pale field), a faint diagonal glass sheen, a warm light spilling from
-  // the display, and a soft shadow. Its helpers are prefixed `screen`.
+  // A tablet held upright, in night mode. The display is the text area; the object is a black glass face in a thin band of
+  // anodised aluminium. It is made to sit in the painted scenes: its metal and its glass take a little of the colours around
+  // them (darker in the night, paler in the day or over a pale field), the scene's light catches the edge on its side (a
+  // fine bright chamfer, a soft glint near the corner it comes from), its shadow takes the scene's hue and falls a little
+  // away from that light, and only in the dark does the display's own light spill around it (more for a bright reading
+  // background). A few fine details: the buttons on its edges, the front camera, the polished edge of the glass, one soft
+  // reflection in the corner toward the light. Its helpers are prefixed `screen`.
   const screenB = (u) => Math.max(3, Math.min(18, Math.round(u * 0.021))); // the bezel
   const screenPath = (c, x, y, w, h, r) => { if (c.roundRect) c.roundRect(x, y, w, h, r); else c.rect(x, y, w, h); };
   const screenLin = (c, x0, y0, x1, y1, stops) => { const g = c.createLinearGradient(x0, y0, x1, y1); for (const s of stops) g.addColorStop(s[0], s[1]); return g; };
+  const screenSm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  // A soft light's falloff, 1 at its heart to 0 at its edge: a peaked core in a long skirt that ends flat, as many stops of
+  // one smooth curve, so that no ring shows where a stop was.
+  function screenFall(rgb, a, n = 14) {
+    const o = [];
+    for (let i = 0; i <= n; i++) { const s = i / n, f = (1 - s * s) ** 2 / (1 + 6 * s * s); o.push([s, `rgba(${rgb},${(a * f).toFixed(4)})`]); }
+    return o;
+  }
+  // The aluminium band, from the side turned to the light to the far side: in the dark (graphite) and in a bright day.
+  const SCREEN_METAL = { stops: [0, 0.35, 0.72, 1], dark: [[118, 113, 106], [58, 56, 53], [33, 32, 30], [52, 50, 47]], day: [[234, 229, 219], [178, 172, 161], [140, 134, 124], [168, 162, 151]] };
   // Perceived brightness (0..1) of what is behind the device; the small previews know it only for the abstract fields.
   function screenLum(o) {
     let un = o.under;
@@ -782,13 +1190,13 @@
     const g = cv.getContext('2d'), sx = cv.width / (x1 - x0), sy = cv.height / (y1 - y0), off = D.x + D.w - x0 + 40;
     const cast = (l) => {
       g.save(); g.setTransform(sx, 0, 0, sy, -x0 * sx, -y0 * sy);
-      g.shadowColor = l.col; g.shadowBlur = l.blur * sx; g.shadowOffsetX = off * sx; g.shadowOffsetY = (l.dy || 0) * sy;
+      g.shadowColor = l.col; g.shadowBlur = l.blur * sx; g.shadowOffsetX = (off + (l.dx || 0)) * sx; g.shadowOffsetY = (l.dy || 0) * sy;
       g.fillStyle = '#000'; g.beginPath(); const e = l.grow || 0; screenPath(g, D.x - off - e, D.y - e, D.w + e * 2, D.h + e * 2, R + e); g.fill(); g.restore();
     };
     for (const l of list) {
       if (l.halo && halo) { // the wide ellipse of light goes between the shadows and the tight glow
         g.save(); g.setTransform(sx * halo.rx, 0, 0, sy * halo.ry, (halo.x - x0) * sx, (halo.y - y0) * sy);
-        g.fillStyle = rad(g, 0, 0, 1, [[0, `rgba(${halo.rgb},${halo.a})`], [0.3, `rgba(${halo.rgb},${halo.a * 0.42})`], [1, `rgba(${halo.rgb},0)`]]);
+        g.fillStyle = rad(g, 0, 0, 1, screenFall(halo.rgb, halo.a));
         g.fillRect(-1, -1, 2, 2); g.restore();
       } else cast(l);
     }
@@ -801,52 +1209,84 @@
     draw(c, S, W, H, o) {
       const mini = o.mini, b = mini ? 3 : screenB(o.u);
       // In the reading colours the display shows the background; a bright display lights the room more, in its own colour.
-      const tone = o.bg ? toneOf(o.bg) : null, spill = tone ? rgbCss(mixRGB(tone.p, [255, 200, 140], 0.45)).replace(/^rgba\((.*),1\)$/, '$1') : '255,200,140';
+      const tone = o.bg ? toneOf(o.bg) : null, spill = (tone ? mixRGB(tone.p, [255, 220, 186], 0.45) : [255, 220, 186]).map((v) => v | 0).join(',');
       const glow = tone ? Math.max(0.6, Math.min(1.8, 0.85 + 1.6 * (tone.l - 0.09))) : 1;
       const D = { x: S.x - b, y: S.y - b, w: S.w + b * 2, h: S.h + b * 2 }; // the whole device
       const cx = D.x + D.w / 2, cy = D.y + D.h / 2;
       const R = mini ? 7 : Math.max(10, Math.min(34, D.w * 0.045)), r = Math.max(2, R - b); // outer and display corner radii
-      const lum = screenLum(o), night = !/^(lines|topo|halo|dots|dust|image)$/.test(o.scene);
-      // 1 in the dark, 0 over a pale field; the painted scenes are always at night, even where their sky is light
-      const dark = Math.max(night ? 0.7 : 0, Math.min(1, 1.4 - lum * 2.4)), pale = lum > 0.5;
-      const k = Math.min(1, D.w / 656);
-      // Where the light comes from: the scene's lamp when there is one, else the upper left.
+      // How dark it is around the device (1 in the night, 0 in the day or over a pale field), and how much of a bright
+      // surrounding its metal and its glass mirror (0 in the dark, 1 in full daylight). The previews of the painted scenes
+      // don't know what is behind them: they show it in the dark.
+      const lum = screenLum(o), dark = screenSm(0.4, 0.14, lum), day = screenSm(0.18, 0.6, lum);
+      const un = o.under ? o.under.map((v) => v * 255) : lum > 0.5 ? [236, 230, 220] : [30, 26, 22]; // the scene's colour behind it
+      const k = Math.min(1, D.w / 656), span = Math.hypot(D.w, D.h) / 2, e = Math.max(1.3, b * 0.15); // e: the metal band
+      // Where the light comes from: the scene's lamp (or its sun) when there is one, else the upper left.
       let lx = -0.6, ly = -0.8;
       if (o.light) { const dx = o.light.x - cx, dy = o.light.y - cy, n = Math.hypot(dx, dy) || 1; lx = dx / n; ly = dy / n; }
+      const lit = o.light && o.light.rgb ? mixRGB(o.light.rgb.split(',').map(Number), [255, 252, 246], 0.55).map((v) => v | 0).join(',') : '255,250,240';
 
-      // 1. the shadow, and the light of the display spilling on the scene
-      const t = Math.round(58 * (1 - dark)), sh = (a) => `rgba(${t},${Math.round(t * 0.7)},${Math.round(t * 0.42)},${a})`, hr = Math.max(D.w, D.h) * (mini ? 0.9 : 1.1);
+      // 1. the shadow, in the scene's own hue, a little away from its light; in the dark, the display's light around it
+      const shc = mixRGB(un.map((v) => v * 0.2), [8, 6, 4], 0.35), sh = (a) => rgbCss(shc, a), hr = Math.max(D.w, D.h) * 0.95;
       const casts = mini
-        ? [{ blur: 10, dy: 4, col: sh(0.5 * (0.5 + dark * 0.5)) }]
-        : [{ blur: 100 * k + 16, dy: 40 * k + 6, col: sh(0.34 + dark * 0.26) }, { blur: 30 * k + 6, dy: 14 * k + 2, col: sh(0.2 + dark * 0.26) }];
+        ? [{ blur: 10, dy: 4, col: sh(0.25 + 0.25 * dark) }]
+        : [{ blur: 90 * k + 14, dx: -lx * 12 * k, dy: 30 * k + 6, col: sh(0.22 + 0.24 * dark) }, { blur: 24 * k + 5, dx: -lx * 3 * k, dy: 9 * k + 2, col: sh(0.2 + 0.2 * dark) }];
       let halo = null;
-      if (dark > 0.02) {
-        halo = { x: cx, y: cy + D.h * 0.05, rx: hr, ry: hr * 0.82, rgb: spill, a: 0.26 * dark * glow };
-        casts.push({ halo: true }, { blur: 70 * k + 10, col: `rgba(${spill},${0.34 * dark * glow})`, grow: 2 }, { blur: 16 * k + 4, col: `rgba(${spill},${0.18 * dark * glow})`, grow: 1 });
+      if (dark > 0.02 && !mini) {
+        halo = { x: cx, y: cy + D.h * 0.04, rx: hr, ry: hr * 0.8, rgb: spill, a: 0.12 * dark * glow };
+        casts.push({ halo: true }, { blur: 46 * k + 8, col: `rgba(${spill},${0.16 * dark * glow})`, grow: 2 }, { blur: 12 * k + 3, col: `rgba(${spill},${0.12 * dark * glow})`, grow: 1 });
       }
       screenCasts(c, W, H, D, R, mini, casts, halo);
       { // a close contact shadow, at full resolution
         const d = c.getTransform().a || 1;
-        c.save(); c.shadowColor = sh(0.3); c.shadowBlur = 6 * d; c.shadowOffsetY = 2 * d; c.fillStyle = '#000';
+        c.save(); c.shadowColor = sh(0.32); c.shadowBlur = 5 * d; c.shadowOffsetY = 1.5 * d; c.fillStyle = '#000';
         c.beginPath(); screenPath(c, D.x, D.y, D.w, D.h, R); c.fill(); c.restore();
       }
 
-      // 2. the rim and the black glass face
-      const e = Math.max(1.3, b * 0.15), span = Math.hypot(D.w, D.h) / 2;
-      const rim = pale
-        ? [[0, '#e2dbcc'], [0.42, '#a39a89'], [0.7, '#938a7a'], [1, '#cdc4b3']]
-        : [[0, '#6a665f'], [0.4, '#2d2b29'], [0.7, '#232220'], [1, '#4b4844']];
-      c.fillStyle = screenLin(c, cx - lx * span, cy - ly * span, cx + lx * span, cy + ly * span, rim);
-      c.beginPath(); screenPath(c, D.x, D.y, D.w, D.h, R); c.fill();
-      c.fillStyle = screenLin(c, cx - lx * span, cy - ly * span, cx + lx * span, cy + ly * span, [[0, '#1b1a19'], [0.5, '#0e0d0c'], [1, '#161514']]);
-      c.beginPath(); screenPath(c, D.x + e, D.y + e, D.w - e * 2, D.h - e * 2, R - e); c.fill();
-      // the chamfer: a fine highlight on the edge, brightest toward the light
-      const lw = Math.max(0.8, e * 0.5), hi = pale ? [0.85, 0.45] : mini ? [0.3, 0.14] : [0.5, 0.22];
-      c.lineWidth = lw;
-      c.strokeStyle = screenLin(c, cx + lx * span, cy + ly * span, cx - lx * span, cy - ly * span, [[0, `rgba(255,250,240,${hi[0]})`], [0.35, 'rgba(255,250,240,.07)'], [0.65, 'rgba(255,250,240,.04)'], [1, `rgba(255,250,240,${hi[1]})`]]);
-      c.beginPath(); screenPath(c, D.x + lw / 2, D.y + lw / 2, D.w - lw, D.h - lw, R - lw / 2); c.stroke();
+      // 2. the buttons on its edges (the top button near the right, the volume on the right side), under the band
+      const metal = (i) => mixRGB(mixRGB(SCREEN_METAL.dark[i], SCREEN_METAL.day[i], day), un, 0.1);
+      if (!mini) {
+        const bt = Math.max(1, b * 0.075), bw = D.w * 0.075, vh = D.h * 0.045;
+        c.fillStyle = rgbCss(metal(2));
+        c.beginPath();
+        screenPath(c, D.x + D.w * 0.78, D.y - bt, bw, bt + 4, bt);
+        screenPath(c, D.x + D.w - 4, D.y + R + D.h * 0.05, bt + 4, vh, bt);
+        screenPath(c, D.x + D.w - 4, D.y + R + D.h * 0.05 + vh * 1.35, bt + 4, vh, bt);
+        c.fill();
+      }
 
-      // 3. the display: very dark warm grey, a touch lighter at its heart
+      // 3. the aluminium band, lit on the side of the light, and the black glass face it holds
+      c.fillStyle = screenLin(c, cx + lx * span, cy + ly * span, cx - lx * span, cy - ly * span, SCREEN_METAL.stops.map((s, i) => [s, rgbCss(metal(i))]));
+      c.beginPath(); screenPath(c, D.x, D.y, D.w, D.h, R); c.fill();
+      // over a pale field, a hairline keeps the pale band apart from it
+      c.lineWidth = 0.75; c.strokeStyle = `rgba(0,0,0,${(0.1 + 0.16 * day).toFixed(3)})`;
+      c.beginPath(); screenPath(c, D.x, D.y, D.w, D.h, R); c.stroke();
+      // the chamfer: a fine highlight along the outer edge, brightest toward the light
+      // (on the far side a little of it is left, as the room's light catches it: the outline never quite vanishes)
+      const lw = Math.max(0.8, e * 0.42), hi = mini ? [0.3, 0.1] : [0.5 + 0.3 * day, 0.16 + 0.14 * day];
+      c.lineWidth = lw;
+      c.strokeStyle = screenLin(c, cx + lx * span, cy + ly * span, cx - lx * span, cy - ly * span, [[0, `rgba(${lit},${hi[0]})`], [0.4, `rgba(${lit},${hi[1] * 0.75})`], [0.75, `rgba(${lit},${hi[1] * 0.6})`], [1, `rgba(${lit},${hi[1]})`]]);
+      c.beginPath(); screenPath(c, D.x + lw / 2, D.y + lw / 2, D.w - lw, D.h - lw, R - lw / 2); c.stroke();
+      if (!mini) { // the light caught on the band near the corner it comes from
+        const gx = cx + lx * D.w * 0.5, gy = cy + ly * D.h * 0.5, gr = span * 0.55;
+        c.save(); c.beginPath(); screenPath(c, D.x, D.y, D.w, D.h, R); screenPath(c, D.x + e, D.y + e, D.w - e * 2, D.h - e * 2, R - e); c.clip('evenodd');
+        c.fillStyle = rad(c, gx, gy, gr, screenFall(lit, 0.42 + 0.2 * day));
+        c.fillRect(Math.max(D.x, gx - gr), Math.max(D.y, gy - gr), Math.min(D.x + D.w, gx + gr) - Math.max(D.x, gx - gr), Math.min(D.y + D.h, gy + gr) - Math.max(D.y, gy - gr));
+        c.restore();
+      }
+      // the glass: black, with a little of the colour around it
+      const glass = (v) => rgbCss(mixRGB(v, un, 0.025 + 0.025 * day));
+      c.fillStyle = screenLin(c, cx + lx * span, cy + ly * span, cx - lx * span, cy - ly * span, [[0, glass([25, 24, 23])], [0.5, glass([13, 12, 11])], [1, glass([18, 17, 16])]]);
+      c.beginPath(); screenPath(c, D.x + e, D.y + e, D.w - e * 2, D.h - e * 2, R - e); c.fill();
+      // where the glass meets the metal: a dark seam, and its polished edge catching the light
+      c.lineWidth = 0.6; c.strokeStyle = 'rgba(0,0,0,.55)';
+      c.beginPath(); screenPath(c, D.x + e, D.y + e, D.w - e * 2, D.h - e * 2, R - e); c.stroke();
+      if (!mini) {
+        c.lineWidth = 0.6;
+        c.strokeStyle = screenLin(c, cx + lx * span, cy + ly * span, cx - lx * span, cy - ly * span, [[0, `rgba(${lit},${0.2 + 0.1 * day})`], [0.45, `rgba(${lit},.03)`], [1, `rgba(${lit},.06)`]]);
+        c.beginPath(); screenPath(c, D.x + e + 0.9, D.y + e + 0.9, D.w - e * 2 - 1.8, D.h - e * 2 - 1.8, R - e - 0.9); c.stroke();
+      }
+
+      // 4. the display: very dark warm grey, a touch lighter at its heart
       c.fillStyle = screenLin(c, 0, S.y, 0, S.y + S.h, tone ? [[0, rgbCss(mixRGB(tone.p, [255, 255, 255], 0.025))], [0.5, o.bg], [1, rgbCss(mixRGB(tone.p, [0, 0, 0], 0.07))]] : [[0, '#1e1b18'], [0.5, '#1b1815'], [1, '#171411']]);
       c.beginPath(); screenPath(c, S.x, S.y, S.w, S.h, r); c.fill();
       if (!mini) {
@@ -858,23 +1298,25 @@
       c.lineWidth = 1; c.strokeStyle = 'rgba(0,0,0,.6)';
       c.beginPath(); screenPath(c, S.x - 0.5, S.y - 0.5, S.w + 1, S.h + 1, r + 0.5); c.stroke();
 
-      // 4. the front camera
-      const cr = mini ? 0.9 : Math.max(1.5, b * 0.17), cyy = D.y + b / 2 + e * 0.3;
-      c.fillStyle = rad(c, cx - cr * 0.3, cyy - cr * 0.3, cr * 1.3, [[0, '#2a2d3a'], [0.45, '#0a0b10'], [1, '#050507']]);
-      c.beginPath(); c.arc(cx, cyy, cr, 0, TAU); c.fill();
-      if (!mini) { c.fillStyle = 'rgba(150,170,255,.55)'; c.beginPath(); c.arc(cx - cr * 0.32, cyy - cr * 0.34, cr * 0.22, 0, TAU); c.fill(); }
+      // 5. the front camera: a small dark lens in a darker ring, a faint coloured glint on its coating
+      const cr = mini ? 0.9 : Math.max(1.4, b * 0.13), cyy = D.y + (b + e) / 2;
+      c.fillStyle = '#050506'; c.beginPath(); c.arc(cx, cyy, cr, 0, TAU); c.fill();
+      if (!mini) {
+        c.fillStyle = rad(c, cx - cr * 0.15, cyy - cr * 0.15, cr * 0.65, [[0, '#1d2030'], [1, '#08090d']]);
+        c.beginPath(); c.arc(cx, cyy, cr * 0.6, 0, TAU); c.fill();
+        c.fillStyle = 'rgba(170,175,255,.35)'; c.beginPath(); c.arc(cx - cr * 0.22, cyy - cr * 0.24, cr * 0.16, 0, TAU); c.fill();
+      }
 
-      // 5. the glass: a faint diagonal sheen, a little stronger on the face than over the display
-      const sheen = (a) => screenLin(c, D.x, D.y, D.x + D.w, D.y + D.h, [
-        [0, 'rgba(255,255,255,0)'], [0.2, 'rgba(255,255,255,0)'], [0.34, `rgba(255,248,238,${a})`], [0.5, 'rgba(255,255,255,0)'],
-        [0.58, 'rgba(255,255,255,0)'], [0.63, `rgba(255,248,238,${a * 0.5})`], [0.68, 'rgba(255,255,255,0)'], [1, 'rgba(255,255,255,0)']]);
-      c.save(); c.beginPath(); screenPath(c, D.x, D.y, D.w, D.h, R); screenPath(c, S.x, S.y, S.w, S.h, r); c.clip('evenodd');
-      c.fillStyle = sheen(0.085); c.fillRect(D.x, D.y, D.w, D.h); c.restore();
+      // 6. the glass: one soft reflection, brightest at the corner toward the light (from above: the glass mirrors the sky
+      // or the ceiling) and gone before the middle, so that the rest of the glass stays a deep black; fainter over the
+      // display, where the text stays as clear. (No film grain on the object any more: on the display it showed as a
+      // noise behind the text, and black glass has none.)
+      const rl = Math.min(ly, -0.3), rn = Math.hypot(lx, rl), rx0 = cx + (lx / rn) * span, ry0 = cy + (rl / rn) * span;
+      const refl = (a) => rad(c, rx0, ry0, span * 0.9, screenFall('255,250,242', a));
+      c.save(); c.beginPath(); screenPath(c, D.x + e, D.y + e, D.w - e * 2, D.h - e * 2, R - e); screenPath(c, S.x, S.y, S.w, S.h, r); c.clip('evenodd');
+      c.fillStyle = refl(mini ? 0.1 : 0.07 + 0.05 * day); c.fillRect(D.x, D.y, D.w, D.h); c.restore();
       c.save(); c.beginPath(); screenPath(c, S.x, S.y, S.w, S.h, r); c.clip();
-      c.fillStyle = sheen(0.03); c.fillRect(S.x, S.y, S.w, S.h); c.restore();
-
-      // 6. a light film grain over the whole object
-      if (!mini) { c.save(); c.beginPath(); screenPath(c, D.x, D.y, D.w, D.h, R); c.clip(); c.translate(D.x, D.y); grain(c, D.w, D.h, 0.05); c.restore(); }
+      c.fillStyle = refl(0.025 + 0.02 * day); c.fillRect(S.x, S.y, S.w, S.h); c.restore();
     },
   };
   /* support:screen:end */
@@ -907,12 +1349,14 @@
   // and how widely the scene flows inside. The fade: how soft the rim, how opaque the bubble, how much the scene's light is
   // held behind the text, and a faint line of light along the rim. The edge: 'glass' or 'portail', and for the latter how
   // many sparkles crowd its rim (and how bright its light) and how torn it is.
+  // (Victor's settings of 08/11/2026. The panel shows only the background, the edge and its halo and sparkles, the blur,
+  // the undulation and the motion; the rest stays as here.)
   const BUB_DEF = {
-    bg: 'clear', col: '#f1ebe1', veil: 0, cols: 0, h: 0, round: 0, float: 1,
-    blur: 0.3, start: 1, end: 0.15, ease: 1, halo: 0.06,
-    amp: 0.09, lobes: 3, irr: 0.55, speed: 1, img: 0.5, iscale: 1,
-    fade: 0.08, op: 1, hold: 0, rim: 0.1,
-    edge: 'glass', spark: 0.6, fray: 0.6, ptint: '#a387ff',
+    bg: 'clear', col: '#f1ebe1', veil: 0, cols: 0, h: 0.59, round: 0, float: 0,
+    blur: 0.22, start: 1.6, end: 0.74, ease: 1.8, halo: 0.18,
+    amp: 0.03, lobes: 2, irr: 0.1, speed: 0.6, img: 0, iscale: 0.25,
+    fade: 0.2, op: 1, hold: 0, rim: 0.1,
+    edge: 'portail', spark: 0.7, fray: 0.2, ptint: 'meteo',
   };
   const bubOpt = Object.assign({}, BUB_DEF);
   const BUB_IN = 0.9; // (the previews: the text's width, as a fraction of the bubble's)
@@ -1661,7 +2105,7 @@ void main() {
   const bubDarkInk = () => (bubOpt.bg === 'color' ? lumOf(hex3(bubOpt.col)) > 0.45 : bubMood.milky);
   SUPPORTS.bubble = {
     name: 'Bulle', live: true, fit: true, opts: bubOpt, defaults: BUB_DEF, geom: bubGeom, inner: BUB_IN, band: BUB_BAND,
-    cols: (measure) => Math.round(+bubOpt.cols || Math.min(BUB_COLS, measure || BUB_COLS)), // (its lines, in signs)
+    cols: (measure) => Math.round(measure || BUB_COLS), // (its lines, in signs: the reader's measure, as on every support)
     height: bubHv, // (its height on the screen)
     glOn: false, lost: null, // (on the GPU; the app's callback when its context is lost)
     get frames() { return bubGL.n; }, // (the frames drawn on the GPU, for tests)

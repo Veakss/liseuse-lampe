@@ -6830,7 +6830,9 @@ window.LISEUSE_SCENES = (() => {
   }
   // The candle lantern at the end of the dock: lit with a match a little before sunset, blown out once the sun is up, and lit on
   // dark rainy days too.
-  const LAKE_LIGHTS = { lantern: { on: 18.9, off: 6.75, dark: 0.5, sfxOn: 'match', sfxOff: 'puff', pan: 0.5 } };
+  // The chalets across the water: the one on the left shore lights up a little after the lantern (and on a dark rainy day), the
+  // one on the right shore later, and goes out before midnight.
+  const LAKE_LIGHTS = { lantern: { on: 18.9, off: 6.75, dark: 0.5, sfxOn: 'match', sfxOff: 'puff', pan: 0.5 }, cabA: { on: 19.05, off: 0.4, dark: 0.5 }, cabB: { on: 20.1, off: 23.75 } };
   // The colour grade (kitGrade) for the lake: its own vignette already darkens every layer (the sky and the water in draw, the hills,
   // the reeds and the sky's moving parts in fx), so the kit's is off; fx grades its sprites the same way (lakeGradeOf).
   const LAKE_GRADE = { vignette: 0, bloom: 0.9, contrast: 1, tint: 1, lift: 1 };
@@ -7006,7 +7008,7 @@ window.LISEUSE_SCENES = (() => {
     return { sun: S, moon: M, wet };
   }
   // The lights on the hills and the reeds: the sun's from the palette, the moon's silver by its strength.
-  const lakeLightList = (P, B) => [{ x: B.sun.x, rim: P.rim, lit: P.lit, reed: P.reedRim, k: 1 }, { x: B.moon.x, rim: LAKE_MOON.rim, lit: LAKE_MOON.lit, reed: LAKE_MOON.reedRim, k: B.moon.k }];
+  const lakeLightList = (P, B) => [{ x: B.sun.x, rim: P.rim, lit: P.lit, reed: P.reedRim, k: 1, lo: B.sun.lo }, { x: B.moon.x, rim: LAKE_MOON.rim, lit: LAKE_MOON.lit, reed: LAKE_MOON.reedRim, k: B.moon.k, lo: B.moon.lo }];
   const lakePathPts = (c, fn, w) => { c.beginPath(); for (let x = 0; x <= w + 6; x += 6) x ? c.lineTo(x, fn(x)) : c.moveTo(x, fn(x)); };
   // Light-facing edge light on a crest, strongest near the light.
   function lakeRimLine(c, fn, w, sx, hz, rgb, a, lw) {
@@ -7019,38 +7021,332 @@ window.LISEUSE_SCENES = (() => {
     c.save(); lakePathPts(c, fn, w); c.lineTo(w + 6, bottom); c.lineTo(0, bottom); c.closePath(); c.clip();
     c.globalCompositeOperation = 'lighter'; c.fillStyle = rad(c, sx, hz, rr, [[0, `rgba(${rgb},${a})`], [0.5, `rgba(${rgb},${a * 0.4})`], [1, `rgba(${rgb},0)`]]); c.fillRect(0, 0, w, bottom); c.restore();
   }
-  // Both ridges, the mist between them and the pines; the rim light of the sun and of the moon and aerial perspective follow the palette.
+  // ---- The far shore's decor: a distant range in the gap between the hills, little firs over the far ridge, woods over the near
+  // hills (masses with ragged edges, clearings, lone firs, a meadow by the water) and a few wooden chalets with their glades. The
+  // geometry is built once per size (LAKE_DECOR, batched paths as the alps' slopes have them); a painting only fills it in its
+  // colours and its light. ----
+  const LAKE_DECOR = new Map();
+  // Value noise 0..1, smooth between the knots of a unit grid; and three octaves of it.
+  function lakeN2(x, y, s) {
+    const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy, sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+    const v = (i, j) => lakeHash(i * 1.37 + j * 57.31 + s * 7.7, s * 0.31 + j * 0.173);
+    const a = v(ix, iy), b = v(ix + 1, iy), d = v(ix, iy + 1), e = v(ix + 1, iy + 1);
+    return a + (b - a) * sx + (d - a) * sy + (a - b - d + e) * sx * sy;
+  }
+  const lakeFbm = (x, y, s) => 0.55 * lakeN2(x, y, s) + 0.3 * lakeN2(x * 2.03 + 5.3, y * 2.03 + 1.7, s + 1) + 0.15 * lakeN2(x * 4.1 + 9.1, y * 4.1 + 3.3, s + 2);
+  // The distant range: its peaks [x, height, half-width] (fractions of the width and the height), a ragged line over them.
+  const LAKE_PEAKS = [[0.25, 0.066, 0.075], [0.338, 0.1, 0.07], [0.383, 0.092, 0.034], [0.412, 0.13, 0.064], [0.47, 0.112, 0.055], [0.556, 0.142, 0.075], [0.597, 0.104, 0.036], [0.648, 0.104, 0.066], [0.738, 0.074, 0.075]]; // (with two shoulders)
+  function lakeRangeAt(t) {
+    let v = 0.035;
+    for (const [px, ph, pw] of LAKE_PEAKS) { const d = Math.sqrt(((t - px) / (pw * (t < px ? 0.9 : 1.1))) ** 2 + 0.012) - 0.11; if (d < 1.7) v = Math.max(v, ph * Math.pow(Math.max(0, 1 - d / 1.7), 1.45)); } // steep under the top, easing out
+    return v + 0.007 * Math.sin(t * 53 + 1.3) * Math.sin(t * 9 + 0.5) + 0.004 * Math.sin(t * 131 + 0.4) + 0.0022 * Math.sin(t * 307 + 2.1) + 0.0014 * Math.sin(t * 701) + 0.0008 * Math.sin(t * 1531 + 0.7) + 0.0006 * Math.abs(Math.sin(t * 2903));
+  }
+  // The chalets: x (fraction of the width), where their front stands (a height over the shore, or on the shore), the width of their
+  // wall (fraction of u), the model (0 chalet, 1 long chalet, 3 barn), mirrored or not, which light lights which window.
+  const LAKE_CABINS = [
+    { x: 0.125, up: 0.1, s: 0.021, m: 1, fl: true, v: 4, win: {}, smoke: 0.5 },
+    { x: 0.352, up: 0, s: 0.031, m: 0, fl: false, v: 1, win: { 1: 'cabA', 2: 'cabA' }, smoke: 1 },
+    { x: 0.716, up: 0.02, s: 0.021, m: 3, fl: false, v: 5, win: {} },
+    { x: 0.66, up: 0, s: 0.032, m: 0, fl: true, v: 2, win: { 2: 'cabB' }, smoke: 0.8 },
+  ];
+  // One fir into the batched paths of its chunk (after alpTree): a spruce's notched tiers, leaning a little (a plain cone when too
+  // small to read them); each half (the light fills the one turned to it), the outer edge of each half (the rim of a low light),
+  // the soft shade it casts on either side and the dark floor under it. un: every silhouette and floor, for the mirror.
+  function lakeTree(K, un, x, y, t, tw, lean, tone, Q, mass) {
+    const n = t < 9 ? 0 : t < 16 ? 2 : t < 25 ? 3 : 4, yb = y - t * 0.1, top = y - t, S = [];
+    for (const s of [1, -1]) {
+      const pts = [];
+      for (let k = 1; k <= n + 1; k++) {
+        const f = k / (n + 1), yk = top + (yb - top) * f, wk = tw * Math.pow(f, 0.9) * (n ? 0.86 + 0.26 * Q() : 1), py = yk + t * 0.025;
+        pts.push([x + s * wk + lean * (y - py) / t, py]);
+        if (k <= n) { const ny = yk - t * 0.012; pts.push([x + s * wk * (0.4 + 0.14 * Q()) + lean * (y - ny) / t, ny]); }
+      }
+      S.push(pts);
+    }
+    const ax = x + lean, tr = tw * 0.1, sil = (p) => {
+      p.moveTo(ax, top); for (const q of S[0]) p.lineTo(q[0], q[1]);
+      p.lineTo(x + tr, yb); p.lineTo(x + tr, y); p.lineTo(x - tr, y); p.lineTo(x - tr, yb);
+      for (let i = S[1].length - 1; i >= 0; i--) p.lineTo(S[1][i][0], S[1][i][1]);
+      p.closePath();
+    };
+    sil(K.sp[tone]); sil(un);
+    S.forEach((pts, i) => {
+      const s = i ? -1 : 1, lt = K.lt[i], rm = K.rm[i];
+      lt.moveTo(ax, top); for (const q of pts) lt.lineTo(q[0], q[1]); lt.lineTo(x + s * tr * 0.8, yb); lt.closePath();
+      rm.moveTo(ax, top); for (const q of pts) rm.lineTo(q[0], q[1]);
+      for (let j = pts.length - 1; j >= 0; j--) { const q = pts[j]; rm.lineTo(x + (q[0] - x) * 0.66, q[1] - t * 0.01); }
+      rm.closePath();
+      const sh = K.sh[i]; // the shade it casts to that side
+      sh.moveTo(x - s * tw * 0.3, y - t * 0.04); sh.lineTo(x + s * tw * 2.7, y + t * 0.05); sh.lineTo(x + s * tw * 1.7, y + t * 0.12); sh.lineTo(x - s * tw * 0.7, y + t * 0.06); sh.closePath();
+    });
+    K.fl.moveTo(x + tw * 1.2, y); K.fl.ellipse(x, y, tw * 1.2, t * 0.06, 0, 0, TAU); // the contact shade at its foot
+    if (mass) { K.ms.moveTo(x + tw * 1.3, y - t * 0.15); K.ms.ellipse(x, y - t * 0.15, tw * 1.3, t * 0.19, 0, 0, TAU); } // (low down: the gaps between the feet of a wood's firs)
+  }
+  // A broadleaf at a wood's edge: a round crown of three lobes on a short trunk (in the larch's light tone), its halves for the light.
+  function lakeLeafTree(K, un, x, y, t, tw) {
+    const r = tw * 1.15, cy = y - t * 0.62, L = [[x, cy - r * 0.35, r * 0.8], [x - r * 0.45, cy + r * 0.12, r * 0.68], [x + r * 0.45, cy + r * 0.1, r * 0.7]];
+    for (const p of [K.sp[3], un]) { p.rect(x - tw * 0.08, cy, tw * 0.16, y - cy); for (const [a, b, q] of L) { p.moveTo(a + q, b); p.ellipse(a, b, q, q * 0.92, 0, 0, TAU); } }
+    for (const [i, sd] of [[0, 1], [1, -1]]) { const p = K.lt[i]; p.moveTo(x + sd * r * 0.4 + r * 0.6, cy - r * 0.05); p.ellipse(x + sd * r * 0.4, cy - r * 0.05, r * 0.6, r * 0.95, 0, 0, TAU); }
+    K.fl.moveTo(x + r * 1.1, y); K.fl.ellipse(x, y, r * 1.1, t * 0.06, 0, 0, TAU);
+  }
+  // The geometry for a size: the range and its faces, the far firs, the woods in chunks from the back to the front, the chalets,
+  // and the skyline over all of it (sky(x): what the clouds' mirror must stay under).
+  function lakeDecorGeo(w, h, hz, u) {
+    const key = w + 'x' + h;
+    let G = LAKE_DECOR.get(key);
+    if (G) return G;
+    const sil = lakeSil(w, h, hz), far = sil.far, near = sil.near, R = mulberry(611), Q = mulberry(733), sky = [];
+    for (let x = 0; x <= w + 6; x += 6) sky.push(sil.top(Math.min(w, x)));
+    const skyMin = (x0, x1, y) => { for (let i = Math.max(0, Math.floor(x0 / 6)); i <= Math.min(sky.length - 1, Math.ceil(x1 / 6)); i++) if (y < sky[i]) sky[i] = y; };
+    // the range's outline (painted by lakeRangeBitmap; the path is for the mirror and the skyline)
+    const rg = new Path2D(), ry = [], st = 4;
+    rg.moveTo(0, hz + 1);
+    for (let x = 0; x <= w + st; x += st) { const y = hz - h * lakeRangeAt(x / w); ry.push(y); rg.lineTo(x, y); }
+    rg.lineTo(w + st, hz + 1); rg.closePath();
+    const rAt = (x) => ry[Math.max(0, Math.min(ry.length - 1, Math.round(x / st)))];
+    for (let x = 0; x <= w; x += 6) skyMin(x, x, rAt(x));
+    // the far firs, along the far ridge where they show over the near one
+    const ft = new Path2D(), fl = [new Path2D(), new Path2D()], tf = h * 0.0095;
+    for (let x = 0; x < w; x += tf * (0.16 + 0.3 * R())) {
+      const r1 = R(), r2 = R(), r3 = R(), y = far(x) + tf * (0.2 + 3.4 * r1 * r1), t = tf * (0.7 + 0.55 * r3), tw = t * 0.27;
+      if (y - t > near(x) - 1) continue;
+      if (r2 > lakeSm((lakeFbm(x / (w * 0.04), y / (h * 0.02), 21) - 0.3) / 0.2)) continue;
+      ft.moveTo(x, y - t); ft.lineTo(x + tw, y); ft.lineTo(x - tw, y); ft.closePath();
+      fl[0].moveTo(x, y - t); fl[0].lineTo(x + tw, y); fl[0].lineTo(x + tw * 0.1, y); fl[0].closePath();
+      fl[1].moveTo(x, y - t); fl[1].lineTo(x - tw, y); fl[1].lineTo(x - tw * 0.1, y); fl[1].closePath();
+      skyMin(x, x, y - t);
+    }
+    // the chalets on their ground, their yards kept clear of trees; the meadows round them, and a few glades
+    const cab = LAKE_CABINS.map((k) => { const x = k.x * w, s = k.s * u; return Object.assign({}, k, { x, s, y: k.up ? Math.max(hz - h * k.up, near(x) + s * 2.4) : hz - 0.4 }); });
+    const yards = cab.map((k) => [k.x + (k.fl ? -0.17 : 0.17) * k.s, k.y - 0.1 * k.s, k.s * 2.1, k.s * 1.9, 1]);
+    const glades = [[w * 0.69, hz - h * 0.012, w * 0.075, h * 0.03, 0.93], [w * 0.13, hz - h * 0.1, w * 0.042, h * 0.034, 0.9], [w * 0.36, hz - h * 0.008, w * 0.04, h * 0.02, 0.8]];
+    // the woods: random points over the near hills, kept by a slow noise (masses, ragged edges, clumps, clearings) and smaller
+    // up the slope (farther away); a few lone firs out in the open
+    let nTop = hz; for (let x = 0; x <= w; x += 6) nTop = Math.min(nTop, near(x));
+    const th = h * 0.021, N = Math.round(w * (hz - nTop) / (th * 0.27 * th * 0.2)), T = [];
+    for (let i = 0; i < N; i++) {
+      const x = R() * w, y = nTop + R() * (hz - nTop), r1 = R(), r2 = R(), r3 = R(), r4 = R(), cr = near(x);
+      if (y < cr + th * 0.12 || y > hz - th * 0.1) continue;
+      const dk = (hz - y) / (hz - nTop), sl = (y - cr) / Math.max(1, hz - cr), t = th * (1.1 - 0.42 * dk) * (0.78 + 0.44 * r2);
+      const a = lakeFbm(x / (w * 0.075) + 1.3, y / (h * 0.03) + 0.7, 3), b = lakeFbm(x / (w * 0.022) + 7.1, y / (h * 0.012) + 2.2, 7);
+      let p = lakeSm((a - 0.47 + 0.13 * (1 - sl) - 0.05 * sl) / 0.1) * (0.6 + 0.5 * lakeSm((b - 0.33) / 0.3));
+      for (const e of glades) { const d = ((x - e[0]) / e[2]) ** 2 + ((y - e[1]) / e[3]) ** 2; if (d < 1) p *= 1 - e[4] * lakeSm((1 - d) / 0.5); }
+      const pm = p; p = Math.max(p, 0.018 * (0.5 + r4));
+      for (const e of yards) { const d = ((x - e[0]) / e[2]) ** 2 + ((y + t * 0.3 - e[1]) / e[3]) ** 2; if (d < 1) p = 0; }
+      if (r1 >= p) continue;
+      const v = lakeFbm(x / (w * 0.05) + 20, y / (h * 0.025), 13) + (r3 - 0.5) * 0.45, m = lakeFbm(x / (w * 0.12) + 4, y / (h * 0.05) + 9, 17), e = lakeHash(i, 31);
+      let tone = v < 0.42 ? 2 : v < 0.6 ? 0 : 1; // (each wood leans to a tone of its own: a cooler spruce, a lighter mix)
+      if (m > 0.6 && e < 0.75) tone = 4; else if (m < 0.4 && e < 0.4) tone = 1;
+      const edge = pm < 0.5, kind = edge && e > 0.9 ? 1 : 0; // out at the edges: a larch here and there, now and then a broadleaf
+      if (edge && e > 0.5) tone = 3;
+      T.push([x, y, t, t * (0.25 + 0.07 * r3), (r4 - 0.5) * t * 0.06, tone, pm > 0.8, kind]);
+    }
+    T.sort((p, q) => p[1] - q[1]);
+    const nc = 6, ch = [], un = new Path2D();
+    for (let k = 0; k < nc; k++) ch.push({ ms: new Path2D(), sp: [new Path2D(), new Path2D(), new Path2D(), new Path2D(), new Path2D()], lt: [new Path2D(), new Path2D()], rm: [new Path2D(), new Path2D()], sh: [new Path2D(), new Path2D()], fl: new Path2D(), y0: 1e9, y1: -1e9, ym: 0, n: 0 });
+    T.forEach((s, i) => {
+      const K = ch[Math.min(nc - 1, (i * nc / T.length) | 0)];
+      if (s[7]) lakeLeafTree(K, un, s[0], s[1], s[2] * 0.8, s[3]); else lakeTree(K, un, s[0], s[1], s[2], s[3], s[4], s[5], Q, s[6]);
+      K.y0 = Math.min(K.y0, s[1]); K.y1 = Math.max(K.y1, s[1]); K.ym += s[1]; K.n++;
+      skyMin(s[0] - s[3], s[0] + s[3], s[1] - s[2]);
+    });
+    for (const K of ch) K.ym = K.n ? K.ym / K.n : hz;
+    // a few boulders out in the meadows, two or three together: a body, the facet turned to each side, the top, the shade under it
+    for (const K of ch) { K.rk = new Path2D(); K.rt = new Path2D(); K.rl = [new Path2D(), new Path2D()]; K.rs = new Path2D(); }
+    const Rk = mulberry(919);
+    for (let i = 0, made = 0; i < 60 && made < 5; i++) {
+      const x = w * (0.03 + 0.94 * Rk()), y = near(x) + (hz - near(x)) * (0.25 + 0.65 * Rk()), r0 = Rk(), r1 = Rk();
+      if (y > hz - th * 0.25 || y < near(x) + th * 0.3) continue;
+      const a = lakeFbm(x / (w * 0.075) + 1.3, y / (h * 0.03) + 0.7, 3);
+      if (a > 0.44 || yards.some((e) => ((x - e[0]) / (e[2] * 1.4)) ** 2 + ((y - e[1]) / (e[3] * 1.4)) ** 2 < 1)) continue;
+      made++;
+      const n = 1 + (r0 * 3 | 0), K = ch.find((q) => q.n && y <= q.y1) || ch[nc - 1];
+      for (let j = 0; j < n; j++) {
+        const rw = th * (0.35 + 0.5 * Rk()) * (j ? 0.6 : 1) * (0.75 + 0.35 * (y - nTop) / (hz - nTop)), rh = rw * (0.36 + 0.16 * Rk()), cx = x + (j ? (j % 2 ? 1 : -1) * rw * (0.9 + 0.4 * Rk()) : 0), cy = y + (j ? rh * 0.2 : 0), sk = (r1 - 0.5) * rw * 0.3;
+        const P0 = [[cx - rw / 2, cy], [cx - rw * 0.46, cy - rh * 0.48], [cx - rw * 0.18 + sk, cy - rh], [cx + rw * 0.16 + sk, cy - rh * 0.96], [cx + rw * 0.47, cy - rh * 0.42], [cx + rw / 2, cy]];
+        const poly = (pth, pts) => { pth.moveTo(pts[0][0], pts[0][1]); for (let q = 1; q < pts.length; q++) pth.lineTo(pts[q][0], pts[q][1]); pth.closePath(); };
+        poly(K.rk, P0); poly(un, P0);
+        poly(K.rt, [P0[2], P0[3], [cx + rw * 0.08 + sk * 0.5, cy - rh * 0.68], [cx - rw * 0.22 + sk * 0.5, cy - rh * 0.64], P0[1]]);
+        poly(K.rl[0], [P0[3], P0[4], P0[5], [cx + rw * 0.2, cy], [cx + rw * 0.08 + sk * 0.5, cy - rh * 0.68]]);
+        poly(K.rl[1], [P0[2], [cx - rw * 0.22 + sk * 0.5, cy - rh * 0.64], [cx - rw * 0.2, cy], P0[0], P0[1]]);
+        K.rs.moveTo(cx + rw * 0.62, cy); K.rs.ellipse(cx, cy, rw * 0.62, rh * 0.16, 0, 0, TAU);
+      }
+    }
+    for (const k of cab) skyMin(k.x - k.s * 0.8, k.x + k.s * 1.1, k.y - k.s * 1.35);
+    G = { rg, ft, fl, ch, un, cab, n: T.length, sky: (x) => sky[Math.max(0, Math.min(sky.length - 1, Math.round(x / 6)))] };
+    LAKE_DECOR.set(key, G); if (LAKE_DECOR.size > 3) LAKE_DECOR.delete(LAKE_DECOR.keys().next().value);
+    return G;
+  }
+  // The strongest light of the moment (the sun's or the moon's, by how much they light the crests), or null.
+  function lakeKeyLight(on) {
+    let l = null, b = 0.015;
+    for (const q of on) { const s = q.k * (q.rim[1] + q.lit[1]); if (s > b) { b = s; l = q; } }
+    return l;
+  }
+  // The look the chalets are drawn in (see chaletSprite): weathered wood from the dock's colour and the hour, a little into the
+  // haze across the water, the shade cool, the lit side in the colour of the light; glade: their yard and its shadow.
+  // (fz: the front toward us is kept in the light, so that they read across the water)
+  function lakeLook(P, on, w, x, glade) {
+    const W = P.W, day = W.day == null ? 1 : W.day, l = lakeKeyLight(on), kl = l ? Math.min(1, l.k * (0.45 + 1.1 * (l.rim[1] + l.lit[1]))) * (1 - 0.45 * (l.lo || 0)) : 0;
+    const lc = l ? kitRGB(l.rim[0]) : [255, 255, 255], lm = Math.max(...lc, 1), f1 = 0.2 + 0.5 * kl, f2 = 0.15 + 0.85 * kl, hz = (v) => wxMix(v, W.haze, 0.2), wd = wxMix(P.dock, P.near, 0.15 + 0.4 * (l ? l.lo || 0 : 1));
+    return {
+      dir: l ? Math.max(-1, Math.min(1, (l.x - x) / (w * 0.3))) : 0.3, kl, fz: 0.45 + 0.3 * (1 - (l ? l.lo || 0 : 1)), snow: 0, flower: 0.7 * day, flowerRgb: [196, 66, 52],
+      sh: [0.72, 0.78, 0.94].map((q) => 1 + (q - 1) * f1), li: lc.map((q) => 1 + (q / lm * 1.3 - 1) * f2),
+      alb: {
+        wall: hz(wxMix(wd, '#b4a690', 0.3)), stone: hz(wxMix(wd, '#86817a', 0.55)), wood: hz(wd), trim: hz(wxMix(wd, '#d6c8b0', 0.4)), glass: hz(wxMix('#202a36', P.near, 0.3)), leaf: hz(P.pine), snow: '#ffffff',
+        roof: hz(wxMix(wd, '#c8c2b6', 0.55)), roof2: hz(wxMix(wd, '#bdb2a0', 0.5)), roof3: hz(wxMix(wd, '#aab0b4', 0.55)), dome: hz(wd), // (light shingles and zinc: a clear roof against the woods)
+      },
+      ground: [lakeRGB(wxMix(P.pine, '#000000', 0.35)), glade ? 0.3 * (0.4 + 0.6 * kl) : 0], clear: [lakeRGB(lakeMeadow(P)), glade ? 0.3 * (0.3 + 0.7 * day) : 0],
+    };
+  }
+  // The grass of the meadows: the hill's colour, lighter and a little warmer under a high sun (a low one backlights them: dark).
+  const lakeMeadow = (P) => wxMix(P.near, '#b9c98e', 0.05 + 0.2 * (P.W.day == null ? 1 : P.W.day) * Math.max(0, 1 - 1.6 * (P.grad < 0.2 ? 1 - P.grad / 0.2 : 0)));
+  const lakeHex = (rgb) => '#' + rgb.split(',').map((v) => Math.max(0, Math.min(255, Math.round(+v))).toString(16).padStart(2, '0')).join('');
+  // How lit a chalet's window is (0..1) by its light's state: full at night, softer while the day is still bright.
+  const lakeWin = (P, id) => (P.D && P.D.lit && P.D.lit[id] ? 0.5 + 0.5 * (1 - (P.W.day == null ? 1 : P.W.day)) : 0);
+  // Fill a path over what stands left of the light (its right halves: side 0) or right of it (side 1).
+  function lakeHalf(c, path, side, lx, w, h, fill) {
+    const a = side ? Math.max(-60, lx) : -60, b = side ? w + 60 : Math.min(w + 60, lx);
+    if (b <= a) return;
+    c.save(); c.beginPath(); c.rect(a, 0, b - a, h); c.clip(); c.fillStyle = fill; c.fill(path); c.restore();
+  }
+  // The range far off, painted pixel by pixel at a little over half size (soft, as a painting is) and cached for a palette and a
+  // light: under each peak a crest line down the middle (an arête that wavers), its two faces, ridges and couloirs fanning out
+  // down them; snow and névés on the high tops (deeper in the couloirs, in patches), lit warm by a low sun, blue in the shade;
+  // the whole pale, sinking into the haze toward its foot.
+  const lakeRangeImg = { key: '', cv: null };
+  function lakeRangeBitmap(w, h, hz, P, on) {
+    const W = P.W, l = lakeKeyLight(on), kl = l ? Math.min(1, l.k * (l.rim[1] + l.lit[1]) * 1.6) * (l === on[0] ? 1 : 0.6) : 0, lo = l ? l.lo || 0 : 0;
+    const key = [w, h, P.far, W.haze, l ? Math.round(l.x) : -1, l ? l.rim[0] : '', kl.toFixed(2), lo.toFixed(2), P.near].join('|');
+    if (lakeRangeImg.key === key) return lakeRangeImg;
+    const x0 = Math.floor(w * 0.1), x1 = Math.ceil(w * 0.9), k = 0.6, cols = Math.ceil((x1 - x0) * k), tops = [];
+    let yT = hz; for (let i = 0; i < cols; i++) { const t = (x0 + (i + 0.5) / k) / w, y = hz - h * lakeRangeAt(t); tops.push(y); yT = Math.min(yT, y); }
+    yT = Math.floor(yT) - 2;
+    const rows = Math.ceil((hz + 1 - yT) * k), cv = document.createElement('canvas'); cv.width = cols; cv.height = rows;
+    const g = cv.getContext('2d'), id = g.createImageData(cols, rows), d = id.data;
+    const base = kitRGB(wxMix(P.far, W.haze, 0.38)), hzc = kitRGB(W.haze), shade = kitMix(base, [20, 26, 54], 0.2), lc = l ? kitRGB(l.rim[0]) : [255, 255, 255];
+    const litc = kitMix(base.map((v) => Math.min(255, v * 1.07)), lc, 0.16 * kl), day = W.day == null ? 1 : W.day, sky = kitRGB(lakeSkyAt(W, 0.4));
+    const am = 0.2 + 0.6 * day, snL = kitMix(litc, kitMix(kitMix([240, 242, 246], lc, 0.2 + 0.45 * lo * kl), hzc, 0.3), am + 0.15 * kl * (1 - day)), snS = kitMix(shade, kitMix(kitMix([196, 206, 230], sky, 0.35), hzc, 0.3), am * 0.85); // (snow only as bright as the light on it: dim and blue by night)
+    const ldirOf = (px) => (l ? Math.max(-1, Math.min(1, (l.x - px) / (w * 0.22))) * (0.45 + 0.55 * lo) : 0);
+    for (let i = 0; i < cols; i++) {
+      const x = x0 + (i + 0.5) / k, t = x / w, top = tops[i];
+      let pi = 0, bv = -1; LAKE_PEAKS.forEach(([px, ph, pw], j) => { const dd = Math.abs(t - px) / pw; const v = ph * Math.max(0, 1 - dd / 1.7); if (v > bv) { bv = v; pi = j; } });
+      const [px, ph, pw] = LAKE_PEAKS[pi], PX = px * w, H = ph * h, PW = pw * w, ld = ldirOf(PX), snowy = lakeSm((ph - 0.085) / 0.03);
+      const sd = H * (0.15 + 0.1 * Math.sin(x * 0.045 + pi * 2.1) + 0.05 * Math.sin(x * 0.17 + pi)) * snowy;
+      for (let j = 0; j < rows; j++) {
+        const y = yT + (j + 0.5) / k, dy = y - top;
+        if (dy < -1.2 / k) continue;
+        const cov = Math.max(0, Math.min(1, dy * k + 0.5)), fall = Math.max(0, dy) / Math.max(4, H);
+        const sx = x - PX - PW * 0.1 * Math.sin(y * 0.11 + pi * 1.3) * Math.min(1, fall * 2) - PW * 0.05 * Math.sin(y * 0.031 + pi);
+        const face = Math.tanh(sx / (1.2 + 7 * fall));
+        const psi = sx / (PW * 0.15 * (1 + 1.8 * fall)) + 0.35 * Math.sin(y * 0.07 + x * 0.013 + pi);
+        const gul = Math.sin(psi * TAU) * Math.min(1, dy / 5) * (0.85 - 0.45 * Math.min(1, fall));
+        const nx = face * 0.65 + gul * 0.5, b = Math.max(0, Math.min(1, 0.5 + 0.5 * nx * ld * kl + 0.1 * gul));
+        let r = shade[0] + (litc[0] - shade[0]) * b, gg = shade[1] + (litc[1] - shade[1]) * b, bb = shade[2] + (litc[2] - shade[2]) * b;
+        if (sd > 1) { // snow on the tops, deeper down the couloirs, in patches
+          const deep = sd * (0.65 + 0.7 * Math.max(0, -gul)) * (0.8 + 0.4 * Math.sin(x * 0.31 + y * 0.05));
+          const s = lakeSm((deep - dy) / 3) * (0.55 + 0.45 * lakeSm((Math.sin(x * 0.23 + pi) + Math.sin(y * 0.4 + x * 0.05) + 0.6) / 1.2));
+          if (s > 0.01) { const q = 0.88 * s; r += (snS[0] + (snL[0] - snS[0]) * b - r) * q; gg += (snS[1] + (snL[1] - snS[1]) * b - gg) * q; bb += (snS[2] + (snL[2] - snS[2]) * b - bb) * q; }
+        }
+        const fz = Math.max(0, Math.min(1, (y - (hz - h * 0.16)) / (h * 0.16))), hq = 0.6 * Math.pow(fz, 1.5); // the haze thickening toward the foot
+        r += (hzc[0] - r) * hq; gg += (hzc[1] - gg) * hq; bb += (hzc[2] - bb) * hq;
+        const o = (j * cols + i) * 4; d[o] = r; d[o + 1] = gg; d[o + 2] = bb; d[o + 3] = 255 * cov;
+      }
+    }
+    g.putImageData(id, 0, 0);
+    lakeRangeImg.key = key; lakeRangeImg.cv = cv; lakeRangeImg.x = x0; lakeRangeImg.y = yT; lakeRangeImg.w = cols / k; lakeRangeImg.h = rows / k;
+    return lakeRangeImg;
+  }
+  function lakeRangePaint(c, G, w, h, hz, P, on) {
+    const R = lakeRangeBitmap(w, h, hz, P, on);
+    c.save(); c.imageSmoothingQuality = 'high'; c.drawImage(R.cv, R.x, R.y, R.w, R.h); c.restore();
+  }
+  // The woods of the near hills, from the back to the front: each chunk its floor, the shade its firs cast away from the light, the
+  // firs in three dark tones (into the haze the higher they stand), the halves turned to the light and, for a low light, their
+  // edges; the chalets stand in their places among them, their windows lit at night.
+  function lakeWoods(c, G, w, h, hz, P, on) {
+    const W = P.W, dy = W.day == null ? 1 : W.day, tones = [P.pine, wxMix(P.pine, P.near, 0.34), wxMix(P.pine, '#000000', 0.22), wxMix(P.pine, wxMix(P.near, '#a4a050', 0.04 + 0.16 * dy), 0.5 - 0.3 * ((lakeKeyLight(on) || {}).lo || 0)), wxMix(wxMix(P.pine, W.haze, 0.1), '#1c3a48', 0.12 * dy)], floor = wxMix(P.pine, '#000000', 0.12), stone = wxMix(wxMix(P.near, P.pine, 0.3), '#7c7a74', 0.1 + 0.22 * (W.day == null ? 1 : W.day));
+    const span = h * 0.25, done = new Set();
+    const cabs = (y) => {
+      for (const k of G.cab) {
+        if (done.has(k) || k.y > y) continue;
+        done.add(k);
+        const r = chalet(c, k.m, k.x, k.y, k.s, lakeLook(P, on, w, k.x, k.up > 0), { v: k.v, flip: k.fl });
+        for (const wn of r.wins) { const a = k.win[wn.id] ? lakeWin(P, k.win[wn.id]) : 0; if (a > 0.01) chLit(c, wn, a); }
+        if (k.smoke && r.chim) lakeSmoke(c, r.chim[0], r.chim[1], k.s, k.smoke * (Object.values(k.win).some((id) => lakeWin(P, id) > 0) ? 1 : 0.6), P);
+      }
+    };
+    for (const K of G.ch) {
+      if (!K.n) continue;
+      const hk = P.grad * Math.max(0, Math.min(1, (hz - K.ym) / span)), col = (v) => (hk > 0.004 ? wxMix(v, W.haze, hk) : v);
+      cabs(K.y0);
+      c.fillStyle = `rgba(${lakeRGB(col(floor))},0.5)`; c.fill(K.fl);
+      c.fillStyle = col(wxMix(tones[2], tones[0], 0.4)); c.fill(K.ms);
+      if (K.rk) { // the boulders: grey stone in the hill's light, the top catching the sky, the facet turned to the light lit
+        c.fillStyle = `rgba(${lakeRGB(col(floor))},0.55)`; c.fill(K.rs);
+        c.fillStyle = col(stone); c.fill(K.rk); c.fillStyle = col(wxMix(stone, lakeSkyAt(W, 0.9), 0.1)); c.fill(K.rt);
+        const l = lakeKeyLight(on); if (l) { const a = Math.min(0.32, l.k * (l.lit[1] + l.rim[1]) * 0.7) * (l === on[0] ? 1 : 0.35); if (a > 0.02) { const f = `rgba(${l.rim[0]},${a.toFixed(3)})`; lakeHalf(c, K.rl[1], 1, l.x, w, h, f); lakeHalf(c, K.rl[0], 0, l.x, w, h, f); } }
+      }
+      for (const l of on) {
+        const kd = l.k * Math.min(1, (l.rim[1] + l.lit[1]) * 1.8); if (kd < 0.03) continue;
+        const sh = `rgba(0,0,0,${(0.2 * kd * (1 - hk)).toFixed(3)})`;
+        lakeHalf(c, K.sh[1], 0, l.x, w, h, sh); lakeHalf(c, K.sh[0], 1, l.x, w, h, sh);
+      }
+      for (let k = 0; k < K.sp.length; k++) { c.fillStyle = col(tones[k]); c.fill(K.sp[k]); }
+      for (const l of on) { // the side in the light: a fresher green warmed by the light (a high sun); the rim of a low one, near it
+        const lo = l.lo || 0, sl = l.k * (l.lit[1] + 0.5 * l.rim[1]), ah = Math.min(0.5, sl * 1.3) * Math.pow(1 - lo, 2.5) * (1 - 0.5 * hk), ar = l.k * l.rim[1] * lo * 0.55 * (1 - 0.5 * hk);
+        if (ah > 0.01) { const f = `rgba(${lakeRGB(col(wxMix(wxMix(P.pine, P.near, 0.5), lakeHex(l.rim[0]), 0.22)))},${ah.toFixed(3)})`; lakeHalf(c, K.lt[0], 0, l.x, w, h, f); lakeHalf(c, K.lt[1], 1, l.x, w, h, f); }
+        if (ar > 0.01) { const f = rad(c, l.x, hz - h * 0.1, w * 0.55, [[0, `rgba(${l.rim[0]},${ar.toFixed(3)})`], [0.4, `rgba(${l.rim[0]},${(ar * 0.45).toFixed(3)})`], [1, `rgba(${l.rim[0]},${(ar * 0.08).toFixed(3)})`]]); lakeHalf(c, K.rm[0], 0, l.x, w, h, f); lakeHalf(c, K.rm[1], 1, l.x, w, h, f); }
+      }
+    }
+    cabs(1e9);
+  }
+  // A chimney's smoke, painted still: soft puffs rising and drifting off with the air, thinning out; pale against the woods by day,
+  // a grey veil by night.
+  function lakeSmoke(c, x, y, s, a, P) {
+    const W = P.W, day = W.day == null ? 1 : W.day, col = lakeRGB(wxMix(lakeSkyAt(W, 0.8), day > 0.5 ? '#f4f2ee' : '#8a90a6', 0.35)), A = a * (0.36 + 0.18 * day);
+    for (let i = 0; i < 7; i++) {
+      const f = i / 6, px = x + s * (0.1 + 1.6 * f * f + 0.12 * Math.sin(i * 1.9)), py = y - s * (0.25 + 1.9 * f), r = s * (0.16 + 0.36 * f), al = A * (1 - 0.75 * f);
+      c.fillStyle = rad(c, px, py, r, [[0, `rgba(${col},${al.toFixed(3)})`], [0.6, `rgba(${col},${(al * 0.45).toFixed(3)})`], [1, `rgba(${col},0)`]]); c.fillRect(px - r, py - r, 2 * r, 2 * r);
+    }
+  }
+  // Both ridges with what stands on them: the range behind, the far firs, the mist between, the woods and the chalets; the rim light
+  // of the sun and of the moon and aerial perspective follow the palette.
   function lakeHills(c, w, h, hz, u, P, lights) {
-    const on = lights.filter((l) => l.k > 0.01);
+    const on = lights.filter((l) => l.k > 0.01), G = lakeDecorGeo(w, h, hz, u);
+    lakeRangePaint(c, G, w, h, hz, P, on);
     const far = ridge(c, 0, w, hz, h * 0.11, mulberry(101), P.far, hz + 1);
+    // the little firs of the far ridge, a shade darker than it, lit a little on the side of the light
+    const fc = wxMix(P.far, P.pine, 0.3); c.fillStyle = fc; c.fill(G.ft);
+    for (const l of on) { const a = Math.min(0.7, l.k * (l.lit[1] + l.rim[1] * 0.5) * 1.6), f = `rgba(${lakeRGB(wxMix(P.far, lakeHex(l.rim[0]), 0.12))},${a.toFixed(3)})`; if (a > 0.02) { lakeHalf(c, G.fl[0], 0, l.x, w, h, f); lakeHalf(c, G.fl[1], 1, l.x, w, h, f); } }
     mist(c, 0, hz - h * 0.05, w, h * 0.07, P.mist[0], P.mist[1]);
     for (const l of on) {
       if (l.lit[1] * l.k > 0.003) lakeLitWash(c, far, w, hz, hz + 1, l.x, l.lit[0], l.lit[1] * l.k * 0.8, w * 0.7);
       if (l.rim[1] * l.k > 0.003) lakeRimLine(c, far, w, l.x, hz, l.rim[0], l.rim[1] * l.k * 0.55, 1);
     }
     const near = ridge(c, 0, w, hz + 1, h * 0.22, mulberry(202), P.grad ? lin(c, 0, hz - h * 0.25, 0, hz, [[0, wxMix(P.near, P.W.haze, P.grad)], [1, P.near]]) : P.near, hz + 2, (t) => Math.abs(t - 0.5) * 2 + 0.15);
-    for (const l of on) {
-      if (l.lit[1] * l.k > 0.003) lakeLitWash(c, near, w, hz, hz + 2, l.x, l.lit[0], l.lit[1] * l.k, w * 0.6);
-      if (l.rim[1] * l.k > 0.003) lakeRimLine(c, near, w, l.x, hz, l.rim[0], l.rim[1] * l.k, 1.3);
-    }
-    const groups = [[0, w * 0.2], [w * 0.82, w]];
-    for (const l of on) { // the pines catch the light on the side that faces it
-      const a = l.rim[1] * l.k; if (a < 0.02) continue;
-      const R1 = mulberry(303);
-      for (const g of groups) {
-        const cx = (g[0] + g[1]) / 2, k = Math.exp(-(((cx - l.x) / (w * 0.55)) ** 2));
-        c.save(); c.translate(Math.sign(l.x - cx) || 1, -1); pinesOn(c, g[0], g[1], near, h * 0.03, h * 0.06, u * 0.016, `rgba(${l.rim[0]},${Math.min(1, a * k * 1.3).toFixed(3)})`, R1); c.restore();
-      }
-    }
-    // the near hills are not one flat colour: soft mottling (woods and clearings), a deeper shade at their foot by the water,
-    // a ragged line of bushes along the shore
+    for (const l of on) if (l.rim[1] * l.k > 0.003) lakeRimLine(c, near, w, l.x, hz, l.rim[0], l.rim[1] * l.k, 1.3); // (the woods cover it where they stand on the crest)
+    // the near hills under the woods: soft mottling, the meadows lighter low down
     c.save(); lakePathPts(c, near, w); c.lineTo(w + 6, hz + 2); c.lineTo(0, hz + 2); c.closePath(); c.clip();
     kitTex(c, 'wax', 0, hz - h * 0.3, w, h * 0.32, 0.16, 2.6);
-    c.fillStyle = lin(c, 0, hz - h * 0.05, 0, hz + 2, [[0, 'rgba(0,0,0,0)'], [1, `rgba(${lakeRGB(wxMix(P.pine, '#000000', 0.3))},.35)`]]); c.fillRect(0, hz - h * 0.05, w, h * 0.05 + 2);
-    const Rt = mulberry(404), tuft = wxMix(P.near, P.pine, 0.3);
-    for (const [a, b] of [[0, w * 0.36], [w * 0.64, w]]) for (let x = a; x < b; x += u * (0.003 + 0.012 * Rt())) { const e = Math.abs(x / w - 0.5) * 2, r = u * (0.0015 + 0.003 * Rt()) * e; if (r > 0.6) ellipse(c, x, hz + 1.5 - r * 0.4, r * 1.4, r, tuft); }
+    const md = lakeRGB(lakeMeadow(P)); c.fillStyle = lin(c, 0, hz - h * 0.16, 0, hz, [[0, `rgba(${md},0)`], [0.6, `rgba(${md},0.5)`], [1, `rgba(${md},0.6)`]]); c.fillRect(0, hz - h * 0.16, w, h * 0.16 + 2);
     c.restore();
-    const R2 = mulberry(303); for (const g of groups) pinesOn(c, g[0], g[1], near, h * 0.03, h * 0.06, u * 0.016, P.pine, R2);
+    for (const l of on) if (l.lit[1] * l.k > 0.003) lakeLitWash(c, near, w, hz, hz + 2, l.x, l.lit[0], l.lit[1] * l.k, w * 0.6);
+    lakeWoods(c, G, w, h, hz, P, on);
+    for (const l of on) if (l.lit[1] * l.k > 0.003) lakeLitWash(c, near, w, hz, hz + 2, l.x, l.lit[0], l.lit[1] * l.k * 0.35, w * 0.45); // (the glow of the air toward the light, over the woods too)
+    // a deeper shade at the hills' foot by the water, a ragged line of bushes along the shore
+    c.save(); lakePathPts(c, near, w); c.lineTo(w + 6, hz + 2); c.lineTo(0, hz + 2); c.closePath(); c.clip();
+    c.fillStyle = lin(c, 0, hz - h * 0.04, 0, hz + 2, [[0, 'rgba(0,0,0,0)'], [1, `rgba(${lakeRGB(wxMix(P.pine, '#000000', 0.3))},.28)`]]); c.fillRect(0, hz - h * 0.04, w, h * 0.04 + 2);
+    const Rt = mulberry(404), tuft = wxMix(P.near, P.pine, 0.3);
+    for (const [a, b] of [[0, w * 0.36], [w * 0.64, w]]) for (let x = a; x < b; x += u * (0.003 + 0.012 * Rt())) { const e = Math.abs(x / w - 0.5) * 2, r = u * (0.0015 + 0.003 * Rt()) * e; if (r > 0.6 && Math.abs(x - G.cab[1].x) > G.cab[1].s * 1.3 && Math.abs(x - G.cab[3].x) > G.cab[3].s * 1.3) ellipse(c, x, hz + 1.5 - r * 0.4, r * 1.4, r, tuft); }
+    // the shore itself: pale shingle in front of the chalets and in a cove or two, tufts of far reeds standing in the water
+    const day = P.W.day == null ? 1 : P.W.day, peb = wxMix(P.near, '#cfc6b4', 0.12 + 0.3 * day), pebD = wxMix(peb, P.pine, 0.4), Rp = mulberry(808);
+    for (const [a, b] of [[G.cab[1].x - G.cab[1].s * 1.6, G.cab[1].x + G.cab[1].s * 2.2], [G.cab[3].x - G.cab[3].s * 2.2, G.cab[3].x + G.cab[3].s * 1.6], [w * 0.43, w * 0.47], [w * 0.78, w * 0.81]])
+      for (let x = a; x < b; x += u * (0.0012 + 0.002 * Rp())) { const e = Math.min(x - a, b - x) / ((b - a) * 0.3), r = u * (0.0009 + 0.0011 * Rp()) * Math.min(1, e); if (r > 0.25) ellipse(c, x, hz - 0.2 - Rp() * 1.6, r * 1.6, r, Rp() < 0.3 ? pebD : peb); }
+    const reedC = wxMix(wxMix(P.pine, P.near, 0.4), '#7a7a3c', 0.18 * day); c.strokeStyle = reedC; c.lineWidth = Math.max(0.6, u * 0.0009); c.beginPath();
+    for (const [x0, n] of [[w * 0.06, 9], [w * 0.29, 7], [w * 0.555, 6], [w * 0.86, 10], [w * 0.95, 7]]) for (let i = 0; i < n; i++) { const x = x0 + (Rp() - 0.5) * u * 0.03, hh = u * (0.006 + 0.008 * Rp()), lean = (Rp() - 0.5) * hh * 0.4; c.moveTo(x, hz + 0.8); c.quadraticCurveTo(x + lean * 0.3, hz - hh * 0.5, x + lean, hz - hh); }
+    c.stroke();
+    c.restore();
     c.fillStyle = `rgba(${lakeRGB(lakeSkyAt(P.W, 1))},${(0.12 + 0.18 * (P.W.day == null ? 1 : P.W.day)).toFixed(3)})`; c.fillRect(0, hz + 0.6, w, 1.1); // calm water's bright edge along the shore
     if (P.veil > 0.005) mist(c, 0, hz - h * 0.2, w, h * 0.24, P.mist[0], P.veil); // rain hangs over the far shore
     return { far, near };
@@ -7527,21 +7823,34 @@ window.LISEUSE_SCENES = (() => {
     for (const [x, y, r, a] of holes) if (a > 0.01) { g.fillStyle = rad(g, x, y, r, [[0, `rgba(0,0,0,${a})`], [0.35, `rgba(0,0,0,${a * 0.75})`], [1, 'rgba(0,0,0,0)']]); g.fillRect(x - r, y - r, 2 * r, 2 * r); }
     return cv;
   }
-  // The two ridges (and the pines) mirrored in the water, at alpha a (draw() paints it still; fx keeps a wavering copy).
-  function lakeReflPaint(g, w, h, hz, u, P, a) {
-    const env = (t) => Math.abs(t - 0.5) * 2 + 0.15;
+  // The far shore mirrored in the water, at alpha a (draw() paints it still; fx keeps a wavering copy): the range, the ridges, the
+  // woods as one dark mass (G.un), the chalets themselves (without their yards) and, at night, the long trail of a lit window.
+  function lakeReflPaint(g, w, h, hz, u, P, a, lights) {
+    const env = (t) => Math.abs(t - 0.5) * 2 + 0.15, G = lakeDecorGeo(w, h, hz, u), wb = wxMix(P.body0, P.body1, 0.35), on = (lights || []).filter((l) => l.k > 0.01), wins = [];
     g.save(); g.globalAlpha = a; g.translate(0, 2 * hz); g.scale(1, -1);
-    const far = ridge(g, 0, w, hz, h * 0.11, mulberry(101), P.rfar, hz - 1), near = ridge(g, 0, w, hz + 1, h * 0.22, mulberry(202), P.rnear, hz - 2, env), Rp = mulberry(303);
-    pinesOn(g, 0, w * 0.2, near, h * 0.03, h * 0.06, u * 0.016, P.rpine, Rp); pinesOn(g, w * 0.82, w, near, h * 0.03, h * 0.06, u * 0.016, P.rpine, Rp);
+    { const R = lakeRangeBitmap(w, h, hz, P, on); g.drawImage(R.cv, R.x, R.y, R.w, R.h); g.globalAlpha = a * 0.45; g.fillStyle = wb; g.fill(G.rg); g.globalAlpha = a; } // (the painted range, toward the water's colour)
+    const far = ridge(g, 0, w, hz, h * 0.11, mulberry(101), P.rfar, hz - 1);
+    g.fillStyle = wxMix(P.rfar, P.rpine, 0.3); g.fill(G.ft);
+    const near = ridge(g, 0, w, hz + 1, h * 0.22, mulberry(202), P.rnear, hz - 2, env);
+    g.fillStyle = P.rpine; g.fill(G.un);
+    if (lights) for (const k of G.cab) {
+      const r = chalet(g, k.m, k.x, k.y, k.s, lakeLook(P, on, w, k.x, false), { v: k.v, flip: k.fl });
+      for (const wn of r.wins) { const q = k.win[wn.id] ? lakeWin(P, k.win[wn.id]) : 0; if (q > 0.01) { chLit(g, wn, q); wins.push([wn, q]); } }
+    }
     g.restore();
+    for (const [wn, q] of wins) { // a lit window's trail on calm water, drawn out toward us
+      const x = wn.x + wn.w / 2, y0 = 2 * hz - (wn.y + wn.h), y1 = 2 * hz - wn.y + (hz - wn.y) * 1.6, r = Math.max(0.8, wn.w * 0.45);
+      g.fillStyle = lin(g, 0, y0, 0, y1, [[0, `rgba(255,206,130,${(0.55 * q).toFixed(3)})`], [0.4, `rgba(255,190,110,${(0.3 * q).toFixed(3)})`], [1, 'rgba(255,180,100,0)']]);
+      g.fillRect(x - r, y0, 2 * r, y1 - y0);
+    }
     return { far, near };
   }
   // Its sprite, so it can waver: thin columns stretch vertically about the horizon, so the far edges ripple most. With the painting
   // at hand it is the painting itself inside the mirrored shapes (the still mirror under it is the same picture).
-  function lakeRefl(w, h, hz, u, sc, P, src) {
+  function lakeRefl(w, h, hz, u, sc, P, src, lights) {
     const rows = Math.min(h - hz, h * 0.27 + h * 0.07), [k, g] = lakeCv(w, rows, sc);
     g.translate(0, -hz);
-    const { far, near } = lakeReflPaint(g, w, h, hz, u, P, src ? 1 : P.reflA);
+    const { far, near } = lakeReflPaint(g, w, h, hz, u, P, src ? 1 : P.reflA, lights);
     if (!lakeFromPainting(k, src, w, hz, rows)) lakeVig(g, w, h, P.vig);
     let top = hz; for (let x = 0; x <= w; x += 6) top = Math.min(top, far(x), near(x));
     const rd = Math.min(k.height, Math.ceil((hz - top + h * 0.065) * sc)), cols = [];
@@ -7989,13 +8298,14 @@ window.LISEUSE_SCENES = (() => {
     const cg = crl.getContext('2d'), fade = cg.createLinearGradient(0, 0, 0, crl.height), wb = lakeRGB(wxMix(P.body0, P.body1, 0.4));
     for (const k of [0, 0.04, 0.12, 0.25, 0.45, 0.7, 1]) fade.addColorStop(k, `rgba(0,0,0,${(P.refl * 0.85 * (1 - 0.68 * Math.pow(k, 0.75)) * lakeSm(k / 0.03 + 0.2)).toFixed(3)})`);
     const mirClip = new Path2D(); mirClip.moveTo(0, h);
-    for (let x = 0; x <= w + 6; x += 6) { const pn = x < w * 0.21 || x > w * 0.81 ? h * 0.045 : 0; mirClip.lineTo(x, 2 * hz - sil.top(Math.min(w, x)) + pn); }
+    const sky = lakeDecorGeo(w, h, hz, u).sky; // (the skyline with the woods, the chalets and the range on it)
+    for (let x = 0; x <= w + 6; x += 6) mirClip.lineTo(x, 2 * hz - sky(Math.min(w, x)) + 2);
     mirClip.lineTo(w + 6, h); mirClip.closePath();
     return {
       CL, crl: { cv: crl, g: cg, q, qy, fade, tint: `rgba(${wb},${(0.3 + 0.12 * W.day).toFixed(3)})` }, mirClip,
       P, D, W, sc, kS, hz, u, glints, swells, birds, gs, ss, sg, mg, lg, dock: dk, lantern: ln, lbox, pbox, boxes, pileRings: A.rings || [], water, sil,
       sparks: lakeSparks(919, 150, hz, wh, w, kS, P.path, P.spark), mspark: lakeSparks(929, 110, hz, wh, w, kS, LAKE_MOON.path, LAKE_MOON.spark),
-      hor: lakeHorizon(w, h, hz, u, sc, P, lights, A.src), vig: lakeSkyVig(w, h, hz, P.vig, [[B1.sun.x, B1.sun.y, B1.sun.r * 6, 0.9 * B1.sun.vis], [B1.moon.x, B1.moon.y, B1.moon.r * 5, 0.8 * B1.moon.vis]]), refl: lakeRefl(w, h, hz, u, sc, P, A.src), reeds: A.reeds ? lakeReeds(A, w, h, sc, P, lights, D, B1, G) : [], leafImg: lakeLeaves(sc, P),
+      hor: lakeHorizon(w, h, hz, u, sc, P, lights, A.src), vig: lakeSkyVig(w, h, hz, P.vig, [[B1.sun.x, B1.sun.y, B1.sun.r * 6, 0.9 * B1.sun.vis], [B1.moon.x, B1.moon.y, B1.moon.r * 5, 0.8 * B1.moon.vis]]), refl: lakeRefl(w, h, hz, u, sc, P, A.src, lights), reeds: A.reeds ? lakeReeds(A, w, h, sc, P, lights, D, B1, G) : [], leafImg: lakeLeaves(sc, P),
       mistImg: lakeMistSprite(lakeQ(P.mist[0])), mistBanks,
       hset: lakeHeronSet(D, B1, w, u * 0.075, sc, G, P), hf: Object.assign(lakeHeronFrame(u * 0.075, sc), { d: sc * 1.2 }), hsOld: null, hsT: null,
       leaves: [], next: -1, rn: { rings: [], acc: 0 }, R,
@@ -11163,13 +11473,20 @@ window.LISEUSE_SCENES = (() => {
       st.rings.push({ x: Math.random() * w, y, age: 0, life: 0.55 + Math.random() * 0.6, rm: u * (0.004 + 0.016 * pf) * (0.6 + Math.random() * 0.8), fl: 0.12 + 0.3 * Math.pow(pf, 0.7), a: 1 });
     }
     if (st.rings.length) {
+      // Batched by alpha, as the lake and the onsen do: ten steps of 0.03 (too fine to see on rings this thin and faint),
+      // so a storm's ~180 rings are ten strokes a frame, not one each.
       c.lineWidth = Math.max(0.5, kS);
-      const rg = fujiCss(V.ring);
-      for (let i = st.rings.length - 1; i >= 0; i--) {
-        const r = st.rings[i]; r.age += dt; const q = r.age / r.life;
-        if (q >= 1) { st.rings[i] = st.rings[st.rings.length - 1]; st.rings.pop(); continue; }
-        const rx = r.rm * (0.15 + 0.85 * (1 - (1 - q) * (1 - q)));
-        c.strokeStyle = `rgba(${rg},${(0.3 * r.a * Math.pow(1 - q, 1.3) * fujiSm(0, 0.12, q)).toFixed(3)})`; c.beginPath(); c.ellipse(r.x, r.y, Math.max(0.2, rx), Math.max(0.1, rx * r.fl), 0, 0, TAU); c.stroke();
+      const rg = fujiCss(V.ring), NB = 10, rings = st.rings;
+      for (let i = rings.length - 1; i >= 0; i--) {
+        const r = rings[i]; r.age += dt; const q = r.age / r.life;
+        if (q >= 1) { rings[i] = rings[rings.length - 1]; rings.pop(); continue; }
+        r.rx = r.rm * (0.15 + 0.85 * (1 - (1 - q) * (1 - q)));
+        r.b = Math.min(NB - 1, Math.floor(r.a * Math.pow(1 - q, 1.3) * fujiSm(0, 0.12, q) * NB));
+      }
+      for (let b = 0; b < NB; b++) {
+        c.beginPath(); let n = 0;
+        for (const r of rings) if (r.b === b) { const rx = Math.max(0.2, r.rx); c.moveTo(r.x + rx, r.y); c.ellipse(r.x, r.y, rx, Math.max(0.1, r.rx * r.fl), 0, 0, TAU); n++; }
+        if (n) { c.strokeStyle = `rgba(${rg},${(0.3 * (b + 0.5) / NB).toFixed(3)})`; c.stroke(); }
       }
     }
     c.globalCompositeOperation = 'source-over';
@@ -13070,7 +13387,7 @@ window.LISEUSE_SCENES = (() => {
       w, h, u, hz, f, cx, K, shore, shoreMin, shoreMax, wetW, zy,
       box: { x: 0, y: 0, w, h: hz },
       bbox: { x: w * 0.18, y: 0, w: w * 0.62, h: hz },
-      pine: { x: w * 0.115, y: h * 0.468 },
+      pine: { x: w * 0.115, y: h * 0.459 },
       cape: { x0: w * 0.862, foot: hz + h * 0.004 },
       fanal: { x: w * 0.876, y: hz + h * 0.003, s: u * 0.03 },
       lantern: { x: w * 0.435, base: h * 0.826, s: u * 0.085 }, // on the fouta, at its far edge, just past the book
@@ -14336,82 +14653,221 @@ window.LISEUSE_SCENES = (() => {
     g.closePath();
   }
 
-  // The point: rounded grey-gold rocks rising from the water to a low back at the left edge, under a cover of maquis; boulders at
-  // the tip with a seam of foam; the wet dark rock just over the water and its broken reflection. One sprite per painting.
+  // A shrub of the maquis round (x, y), r its half-height: its own shade first, then leafy lumps, each lit as its place on the
+  // shrub turns to the light, the high ones on the light's side with a crescent of light on their rims, the low ones in its shade.
+  // leaf: its albedo.
+  function plageShrub(g, L, R, x, y, r, leaf, side, hz2) {
+    const sh = hz2(plageLit(L, leaf, 0, -0.6, 0.8, 0.75, 0.7)), rim = hz2(plageLit(L, kitMix(leaf, [168, 172, 96], 0.4), side.dx, -side.dy, 0.2, 1, 0.1)), ra = 0.5 * (0.3 + 0.7 * L.k);
+    plageLumpPath(g, R, x, y + r * 0.12, r * 1.3, r * 0.85, 0.5); g.fillStyle = kitCss(sh); g.fill();
+    const n = 5 + Math.min(8, Math.round(r / 2.5)), lumps = [];
+    for (let i = 0; i < n; i++) { const s = R() * 2 - 1, e = Math.sqrt(1 - s * s), v = R() * 2 - 1; lumps.push([x + s * r * 1.0, y - v * r * 0.6 * e - r * 0.12, r * (0.3 + 0.22 * R()) * (0.7 + 0.3 * e), s, v]); }
+    lumps.sort((a, b) => a[1] - b[1]);
+    for (const [lx, ly, lr, s, v] of lumps) {
+      const nx = s * 0.75, ny = 0.15 + v * 0.7, nzz = Math.sqrt(Math.max(0.05, 1 - nx * nx - ny * ny));
+      const col = hz2(plageLit(L, leaf, nx, ny, nzz, 1, 0.4)), hi = hz2(plageLit(L, leaf, nx, Math.min(1, ny + 0.5), nzz * 0.7, 1, 0.2));
+      plageLumpPath(g, R, lx, ly, lr * 1.3, lr, 0.6);
+      g.fillStyle = lin(g, 0, ly - lr, 0, ly + lr * 0.6, [[0, kitCss(hi)], [0.55, kitCss(col)], [1, kitCss(kitMix(col, sh, 0.6))]]); g.fill();
+      if (ny > 0.25) { g.save(); g.clip(); g.translate(lx, ly); g.scale(1.3, 1); plageCrescent(g, 0, 0, lr, side.dx, side.dy, side.o, kitCss(rim, ra * 0.7)); g.restore(); }
+    }
+    // its leaves breaking its outline: short strokes out of the upper lumps, lit as they are; a few dark gaps in it
+    const lf = hz2(plageLit(L, leaf, 0.3 * side.dx, 0.75, 0.55, 1, 0.3));
+    g.lineCap = 'round'; g.lineWidth = Math.max(0.5, r * 0.07); g.strokeStyle = kitCss(lf, 0.6); g.beginPath();
+    for (const [lx, ly, lr, s, v] of lumps) { if (v < -0.1) continue; for (let k = 0; k < 4; k++) { const a = -Math.PI / 2 + s * 0.8 + (R() - 0.5) * 2.2, ln = lr * (0.25 + 0.35 * R()); g.moveTo(lx + Math.cos(a) * lr * 0.9, ly + Math.sin(a) * lr * 0.75); g.lineTo(lx + Math.cos(a) * (lr * 0.9 + ln) * 1.2, ly + Math.sin(a) * (lr * 0.75 + ln)); } }
+    g.stroke();
+    g.fillStyle = kitCss(sh, 0.7); g.beginPath();
+    for (let i = 0; i < 2 + r / 4; i++) { const gx = x + (R() * 2 - 1) * r * 0.8, gy = y + (R() - 0.3) * r * 0.6, gr = r * (0.06 + 0.06 * R()); g.moveTo(gx + gr * 1.4, gy); g.ellipse(gx, gy, gr * 1.4, gr, 0, 0, TAU); }
+    g.fill();
+  }
+
+  // The point: a mass of pale limestone as in the calanques, running out from the left edge: a rounded summit under the maquis and
+  // the pine, shoulders and spurs of varying heights, a tip that sinks into the sea. Fractures, upright or slanting, cut it into
+  // blocks, and each block into facets that turn each its own way: those toward the light warm cream, the others in the sky's bluish
+  // shade, the rounded tops lit; two faint beds; dark streaks down the faces; fallen blocks of all sizes at its foot and the wet dark
+  // band at the water; the maquis in clumps that follow the relief, thicker in the hollows and the cracks; a seam of foam at its foot
+  // and some lace on the water; its reflection, broken by the ripples. One sprite per painting.
+  const PLAGE_POINT_SKY = [ // its skyline [x in w, y in h]
+    [-0.02, 0.392], [0.012, 0.38], [0.04, 0.375], [0.066, 0.385], [0.088, 0.41], [0.104, 0.438], [0.12, 0.452], [0.138, 0.456], [0.156, 0.46],
+    [0.17, 0.473], [0.184, 0.48], [0.198, 0.482], [0.211, 0.494], [0.226, 0.509], [0.242, 0.521], [0.258, 0.533],
+  ];
   function plagePointSpr(G, P, D, L) {
-    const { w, h, u } = G, sc = plageDens(), R = mulberry(811), nz = kitNoise(813), K = G.K;
-    const top = h * 0.395, bot = h * 0.572, W = w * 0.27, H = bot - top, [cv, g] = plageCv(W, H, sc);
+    const { w, h, u } = G, sc = plageDens(), R = mulberry(811), nz = kitNoise(813), n2 = kitNoise(817);
+    const top = h * 0.33, wl = h * 0.532, bot = h * 0.6, W = w * 0.285, H = bot - top, [cv, g] = plageCv(W, H, sc);
     g.translate(0, -top);
-    const haze = L.haze, hz2 = (c) => kitMix(c, haze, 0.07), side = plageLightSide(L);
-    const rock = [184, 160, 128], scrub = [58, 80, 48], tip = w * 0.248;
-    const base = (x) => h * (0.529 + 0.008 * Math.min(1, Math.max(0, x / tip))); // where the rocks meet the water
-    const PR = [[-0.01, 0.43], [0.022, 0.428], [0.048, 0.436], [0.072, 0.446], [0.098, 0.455], [0.124, 0.461], [0.148, 0.47], [0.17, 0.486], [0.19, 0.5], [0.21, 0.511], [0.229, 0.523], [0.248, 0.537]];
-    const yTop = (x) => { const X = x / w; for (let i = 1; i < PR.length; i++) if (PR[i][0] >= X) { const s = (X - PR[i - 1][0]) / (PR[i][0] - PR[i - 1][0]), e = s * s * (3 - 2 * s); return h * (PR[i - 1][1] + (PR[i][1] - PR[i - 1][1]) * e) + u * 0.002 * nz(X * 40, 1.7); } return base(x); };
-    const body = () => { g.beginPath(); g.moveTo(-4, base(-4) + 1); for (let x = -4; x <= tip; x += 3) g.lineTo(x, Math.min(yTop(x), base(x))); for (let x = tip; x >= -4; x -= 6) g.lineTo(x, base(x) + 1); g.closePath(); };
-    const faceC = hz2(plageLit(L, rock, 0.25 * side.dx, 0.15, 0.95, 1, 0.5)), faceT = hz2(plageLit(L, rock, 0.3 * side.dx, 0.7, 0.6, 1, 0.3));
-    // a dark ground of crevices, then the rocks in three rows, the back ones first: rounded and broken, each lit on its top and on
-    // the light's side, in shade under it; the front ones wet and dark at the water
-    const litR = hz2(plageLit(L, rock, side.dx, -side.dy, 0.1, 1, 0.2)), topR = hz2(plageLit(L, rock, 0.3 * side.dx, 0.95, 0.25, 1, 0.1)), shR = hz2(plageLit(L, rock, -0.3 * side.dx, -0.2, 0.9, 0.85, 0.6)), crack = kitMix(shR, [20, 18, 28], 0.5);
-    body(); g.fillStyle = lin(g, 0, h * 0.43, 0, h * 0.535, [[0, kitCss(kitMix(faceT, crack, 0.3))], [1, kitCss(kitMix(faceC, crack, 0.38))]]); g.fill();
-    const wetC = kitMix(shR, kitRGB(P.deep), 0.4);
-    for (let j = 0; j < 3; j++) for (let x = -8 + u * 0.012 * R(); x < tip - u * 0.006 * j;) {
-      const yt = yTop(x), yb = base(x), dep = Math.max(u * 0.01, yb - yt), rw = u * (0.018 + 0.05 * R() * R()) * (1 - 0.4 * Math.max(0, x) / tip) * (1 - 0.12 * j);
-      const cx = x + rw * 0.5, foot = j === 2 ? base(cx) + 1 : Math.min(base(cx), yTop(cx) + dep * (0.4 + 0.3 * j + 0.08 * (R() - 0.5))), rh = Math.min(dep * (0.36 + 0.24 * R()), rw * (0.5 + 0.25 * R())), hw = rw * 0.5 * (1.05 + 0.2 * R());
-      const q = R(), rc = kitMix(rock, [146, 124, 108], 0.55 * q), pts = [[cx - hw, foot]];
-      for (let i = 0; i <= 7; i++) { const an = Math.PI + Math.PI * i / 7, rr = 0.82 + 0.25 * R(); pts.push([cx + Math.cos(an) * hw * rr, foot + Math.sin(an) * rh * rr * (i === 0 || i === 7 ? 0.3 : 1)]); }
-      pts.push([cx + hw, foot]);
-      const poly = () => { g.beginPath(); pts.forEach(([px, py], i) => (i ? g.lineTo(px, py) : g.moveTo(px, py))); g.closePath(); };
-      const col = hz2(plageLit(L, rc, 0.2 * side.dx, 0.1, 0.95, 1, 0.5)), tp = hz2(plageLit(L, rc, 0.25 * side.dx, 0.95, 0.3, 1, 0.1));
-      poly(); g.fillStyle = lin(g, 0, foot - rh, 0, foot, [[0, kitCss(kitMix(tp, col, 0.25))], [0.45, kitCss(col)], [1, kitCss(kitMix(col, crack, 0.35))]]); g.fill();
-      const lg = g.createLinearGradient(cx - hw * side.dx, 0, cx, 0); lg.addColorStop(0, kitCss(litR, 0.4 * (0.3 + 0.7 * L.k))); lg.addColorStop(1, kitCss(litR, 0));
-      poly(); g.fillStyle = lg; g.fill(); // the side toward the light
-      if (j === 2) { poly(); g.fillStyle = lin(g, 0, foot - rh * 0.45, 0, foot, [[0, kitCss(wetC, 0)], [1, kitCss(wetC, 0.75)]]); g.fill(); }
-      x += rw * (0.72 + 0.3 * R());
+    const haze = L.haze, hz2 = (c) => kitMix(c, haze, 0.08), side = plageLightSide(L), PS = PLAGE_POINT_SKY, tip = w * PS[PS.length - 1][0];
+    // the fractures: one set, upright or a little slanting, a few more slanting; close together toward the tip; each notches the
+    // skyline a little, so that the tops of the blocks between them are rounded and uneven
+    const fr = [];
+    const WP = [[0.026, 0.071], [0.122, 0.163]], inWP = (x) => WP.some(([a, b]) => x > w * a - 2 && x < w * b + 2); // two broad smooth faces among the columns
+    const addF = (x, deep) => fr.push({ x, sl: 0.12 + (R() - 0.5) * 0.14, i: fr.length, len: deep ? 1 : R() < 0.45 ? 0.3 + 0.4 * R() : 1, a: deep ? 0.5 : 0.18 + 0.37 * R(), nd: u * (deep ? 0.007 : 0.002 + 0.006 * R()), nw: u * (0.005 + 0.006 * R()) });
+    for (let x = -4 + u * 0.01 * R(); x < tip;) { if (!inWP(x)) addF(x, false); x += w * (R() < 0.22 ? 0.022 + 0.018 * R() : 0.007 + 0.012 * R()) * (x > 0.17 * w ? 0.8 : 1); }
+    for (const [a, b] of WP) { addF(w * a, true); addF(w * b, true); }
+    fr.sort((p, q) => p.x - q.x); fr.forEach((f, i) => { f.i = i; });
+    fr.push({ x: tip + 30, sl: 0.12, i: fr.length, len: 1, a: 0, nd: 0, nw: 1 });
+    const notch = (x) => { let d = 0; for (const f of fr) { const q = (x - f.x) / f.nw; if (q > -3 && q < 3) d += f.nd * Math.exp(-q * q); } return d; };
+    const yTop = (x) => Math.min(wl, yTop0(x) + notch(x) * Math.min(1, (wl - yTop0(x)) / (u * 0.02)));
+    const yTop0 = (x) => { const X = x / w; let i = 1; while (i < PS.length - 1 && PS[i][0] < X) i++; const a = PS[i - 1], b = PS[i], s = Math.max(0, Math.min(1, (X - a[0]) / (b[0] - a[0]))), e = s * s * (3 - 2 * s); return Math.min(wl, h * (a[1] + (b[1] - a[1]) * e) + u * 0.0035 * nz(X * 22, 1.3) * Math.min(1, (wl - h * a[1]) / (h * 0.02)) + u * 0.0012 * nz(X * 70, 2.9)); };
+    const body = () => { g.beginPath(); g.moveTo(-4, wl + 1); for (let x = -4; x <= tip; x += 2) g.lineTo(x, yTop(x)); g.lineTo(tip + 2, wl + 1); g.closePath(); };
+    // the light on the rock: the sun's (or the moon's), as it stands from the point rather than from us, and grazing a little more
+    // (a painter's light: its faces toward the sun's side lit, the others in shade), the shade turned to the sky's blue
+    const bx = G.cx + G.f * Math.tan(L.phi), pr = Math.atan((bx - w * 0.12) / (G.f * 0.35)), ce = Math.cos(L.el), Lr0 = [Math.sin(pr) * ce, Math.sin(L.el), 0.35 * Math.cos(pr) * ce], ln = Math.hypot(Lr0[0], Lr0[1], Lr0[2]) || 1;
+    const Lr = Object.assign({}, L, { lx: Lr0[0] / ln, ly: Lr0[1] / ln, lz: Lr0[2] / ln }), blueK = 0.16 * Math.min(1, L.k * 1.5);
+    const lit = (alb, nx, ny, nzz) => { const c = hz2(plageLit(Lr, alb, nx, ny, nzz, 1.1, 0.35)), lam = nx * Lr.lx + ny * Lr.ly - nzz * Lr.lz, sh = blueK * (1 - Math.min(1, Math.max(0, lam) * 4)), df = 1 + 0.16 * (1 - Math.min(1, L.k * 1.5)) * (0.6 * nx + ny); const sw = Math.max(0, lam) * L.k * 0.24; return [Math.min(255, c[0] * (1 - 0.6 * sh) * df + L.sun[0] * sw * alb[0] / 255), Math.min(255, c[1] * (1 - 0.15 * sh) * df + L.sun[1] * sw * alb[1] / 255), Math.min(255, c[2] * (1 + 0.35 * sh) * df + L.sun[2] * sw * alb[2] / 255)]; }; // under a grey sky, the facets toward the open sea and the sky a little lighter
+    const ALB = [[226, 202, 162], [214, 190, 152], [232, 208, 166]], crackA = [40, 36, 44];
+    body(); g.fillStyle = kitCss(lit(ALB[0], 0, 0.1, 0.99)); g.fill();
+    g.save(); body(); g.clip();
+    const fx = (f, y) => f.x + (y - yTop(f.x)) * f.sl + u * 0.0035 * nz(y / h * 22, f.i * 1.7) + u * 0.0015 * nz(y / h * 90, f.i * 2.3);
+    // the blocks between them, each cut into tiers at its own heights, each tier into two facets on either side of a ridge
+    for (let j = 0; j + 1 < fr.length; j++) {
+      const A = fr[j], B = fr[j + 1], yt = Math.min(yTop(A.x), yTop(Math.min(B.x, tip))) - 6, yb = wl + 2, hgt = yb - yt;
+      const wide = B.x - A.x > w * 0.03, thin = B.x - A.x < w * 0.022 || hgt < h * 0.07, cuts = [yt]; if (wide) { if (R() < 0.6) cuts.push(yt + hgt * (0.45 + 0.2 * R())); } else if (!thin) for (let y = yt + hgt * (0.22 + 0.3 * R()); y < yb - hgt * 0.15; y += hgt * (0.25 + 0.35 * R())) cuts.push(y); cuts.push(yb); // a narrow or low column stays whole: cut into tiers it reads as a grid of small squares
+      const alb = ALB[R() * 3 | 0], yaw0 = (R() - 0.5) * 0.5;
+      for (let c = 0; c + 1 < cuts.length; c++) {
+        const y0 = cuts[c], y1 = cuts[c + 1], tl = (R() - 0.5) * 16, f = wide ? 0.2 + 0.25 * R() : 0.3 + 0.4 * R(), fb = Math.max(0.15, Math.min(0.85, f + (R() - 0.5) * 0.4)), yaw = yaw0 + (R() - 0.5) * 0.35, up = c === 0 ? 0.25 : (R() - 0.6) * 0.5;
+        const xa0 = fx(A, y0), xb0 = fx(B, y0), xa1 = fx(A, y1), xb1 = fx(B, y1), ra = [xa0 + (xb0 - xa0) * f, y0 + tl * f], rb = [xa1 + (xb1 - xa1) * fb, y1];
+        const nrm = (nx, ny) => lit(alb, nx, ny, Math.sqrt(Math.max(0.1, 1 - nx * nx - ny * ny))), cL = nrm(-0.5 + yaw, up), cR = nrm(0.5 + yaw, up), ym = (y0 + y1) / 2, xam = fx(A, ym), xbm = fx(B, ym), fm = (f + fb) / 2, sharp = !wide && R() < 0.22, so = sharp ? 0.015 : wide ? 0.3 : 0.1 + 0.1 * R();
+        const cell = () => { g.beginPath(); for (let y = y0; y < y1; y += 5) g.lineTo(fx(A, y) - 0.5, y + tl * 0 ); g.lineTo(xa1 - 0.5, y1 + 0.5); g.lineTo(xb1 + 0.5, y1 + 0.5); for (let y = y1; y > y0; y -= 5) g.lineTo(fx(B, y) + 0.5, y); g.lineTo(xb0 + 0.5, y0 + tl); g.closePath(); };
+        cell(); g.fillStyle = lin(g, xam, ym, xbm, ym, [[0, kitCss(kitMix(cL, crackA, 0.08))], [Math.max(0.02, fm - so), kitCss(cL)], [Math.min(0.98, fm + so), kitCss(cR)], [1, kitCss(kitMix(cR, cL, 0.15))]]); g.fill(); // light to shade across it, soft but at the few sharp edges
+        if (R() < 0.5 && c > 0) { const sx = xa0 + (xb0 - xa0) * R(), sl2 = (y1 - y0) * (0.3 + 0.5 * R()); g.fillStyle = lin(g, 0, y0, 0, y0 + sl2, [[0, kitCss([104, 104, 110], 0.14 + 0.1 * R())], [1, kitCss([104, 104, 110], 0)]]); g.fillRect(sx, y0, 2 + 4 * R(), sl2); } // grey streaks under the ledge
+        { // each tier a little lighter at its top, its weathering in soft patches
+          g.fillStyle = lin(g, 0, y0, 0, y1, [[0, kitCss(lit(alb, yaw, 0.7, 0.7), 0.12 * (0.3 + 0.7 * L.k))], [0.5, kitCss(crackA, 0)], [1, kitCss(crackA, 0.1)]]); cell(); g.fill();
+          g.save(); cell(); g.clip(); for (let k = 0; k < 3; k++) { const q = R(); plageLumpPath(g, R, xa0 + (xb0 - xa0) * R(), y0 + (y1 - y0) * R(), u * (0.003 + 0.004 * R()), u * (0.008 + 0.014 * R()), 0.9); g.fillStyle = q < 0.6 ? kitCss(crackA, 0.05 + 0.05 * R()) : kitCss([176, 136, 92], (0.05 + 0.05 * R()) * L.day * L.day); g.fill(); } g.restore(); }
+        if (c > 0) { // the overhang of the tier above: a shade under its edge
+          g.strokeStyle = kitCss(crackA, 0.16); g.lineWidth = 3; g.beginPath(); g.moveTo(xa0, y0 + 1.5); g.lineTo(xb0, y0 + tl + 1.5); g.stroke();
+          g.strokeStyle = kitCss(crackA, 0.28); g.lineWidth = 0.8; g.beginPath(); g.moveTo(xa0, y0); g.lineTo(xb0, y0 + tl); g.stroke();
+        }
+        if (sharp) { g.strokeStyle = kitCss(lit(alb, yaw, 0.6, 0.8), 0.15); g.lineWidth = 0.8; g.beginPath(); g.moveTo(ra[0], ra[1]); g.lineTo(rb[0], rb[1]); g.stroke(); } // the ridge, where it is sharp
+      }
     }
-    // the maquis over the back of the point: dense rounded bushes, dark, lit on their tops from the light's side
-    const scS = hz2(plageLit(L, scrub, 0, -0.2, 0.95, 1, 0.5)), scM = hz2(plageLit(L, scrub, 0.2 * side.dx, 0.4, 0.8)), scL = hz2(plageLit(L, scrub, side.dx, -side.dy, 0.15));
-    const greens = [[0, 0, 0], [18, 10, 6], [30, 18, 20]]; // lentisk, then broom and cistus a little paler
-    const bushes = [];
-    for (let i = 0; i < 95; i++) {
-      const x = -u * 0.01 + (w * 0.2) * Math.pow(R(), 1.15), yt = yTop(x), r = u * (0.007 + 0.012 * R()) * (1 - 0.5 * x / (w * 0.21)), y = yt + r * (0.1 + 0.5 * R()) + (base(x) - yt) * 0.35 * Math.pow(R(), 2) * (1 - x / (w * 0.21)), gi = R() * 3 | 0;
-      if (y <= base(x) - r * 0.6) bushes.push([x, y, r, gi]);
+    // the fractures over them: a dark crack, the block's shade cast along its side away from the light
+    const sd = side.dx >= 0 ? -1 : 1;
+    for (const f of fr) {
+      const y0 = yTop(Math.min(f.x, tip)) + u * (0.006 + 0.014 * R()), y9 = y0 + (wl + 2 - y0) * f.len, pts = []; for (let y = y0; y <= y9; y += 6) pts.push([fx(f, y), y]);
+      if (pts.length < 2) continue;
+      g.strokeStyle = kitCss(crackA, 0.2 * f.a * (0.4 + 0.6 * L.k)); g.lineWidth = u * 0.006; g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x - sd * u * 0.003, y) : g.moveTo(x - sd * u * 0.003, y))); g.stroke();
+      g.strokeStyle = kitCss(crackA, f.a); g.lineWidth = Math.max(0.7, u * 0.0012 * (0.6 + f.a)); g.beginPath(); let on = true; pts.forEach(([x, y], i) => { if (i && R() < 0.12) on = !on; on && i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke();
     }
-    bushes.sort((a, b) => a[1] - b[1]); // the far ones first
-    for (const [x, y, r, gi] of bushes) {
-      const ad = (c) => c.map((v, j) => Math.min(255, v + greens[gi][j] * (0.4 + 0.6 * L.day)));
-      plageLumpPath(g, R, x, y, r * 1.35, r, 0.5); g.fillStyle = lin(g, 0, y - r, 0, y + r * 0.6, [[0, kitCss(ad(scM))], [1, kitCss(ad(kitMix(scS, scM, 0.3)))]]); g.fill();
-      g.save(); g.clip(); g.translate(x, y); g.scale(1.35, 1); plageCrescent(g, 0, 0, r, side.dx, side.dy, side.o, kitCss(ad(scL), 0.5)); g.restore();
+    // a few short slanting cracks, and two faint beds dipping toward the sea, broken
+    g.strokeStyle = kitCss(crackA, 0.16); g.lineWidth = 0.6; g.beginPath(); // cracks that branch
+    for (let i = 0; i < 12; i++) {
+      let x = tip * R(), y = yTop(x) + (wl - yTop(x)) * (0.1 + 0.6 * R()); g.moveTo(x, y);
+      for (let k = 0; k < 4; k++) { const a = (R() - 0.5) * 1.2, l = u * (0.005 + 0.008 * R()), x2 = x + Math.sin(a) * l, y2 = y + Math.cos(a) * l; g.lineTo(x2, y2); if (k === 1) { const b = a + (R() < 0.5 ? 1 : -1) * (0.7 + 0.5 * R()), l2 = u * (0.004 + 0.006 * R()); g.lineTo(x2 + Math.sin(b) * l2, y2 + Math.cos(b) * l2); g.moveTo(x2, y2); } x = x2; y = y2; }
     }
-    // a few boulders at the tip, standing in the water, a seam of foam round their feet
-    for (const [fx, fr] of [[0.236, 0.009], [0.246, 0.007], [0.254, 0.005], [0.226, 0.006]]) {
-      const x = w * fx, r = u * fr, y = base(x) - r * 0.35;
-      g.fillStyle = kitCss(kitMix(faceC, shR, 0.4)); g.beginPath(); g.ellipse(x, y, r * 1.3, r * 0.85, 0, Math.PI, TAU); g.lineTo(x + r * 1.3, y + r * 0.3); g.lineTo(x - r * 1.3, y + r * 0.3); g.closePath(); g.fill();
-      g.save(); g.translate(x, y); g.scale(1.3, 0.85); plageCrescent(g, 0, 0, r, side.dx, side.dy, side.o * 0.8, kitCss(topR, 0.7)); g.restore();
+    g.stroke();
+    for (let i = 0; i < 12; i++) { // hollows the spray has worn, in small clusters
+      const cx0 = tip * 0.95 * R(), cy0 = yTop(cx0) + (wl - yTop(cx0)) * (0.2 + 0.65 * R());
+      for (let k = 0; k < 4 + R() * 5; k++) { const r = u * (0.0006 + 0.0012 * R()), x = cx0 + (R() - 0.5) * u * 0.024, y = cy0 + (R() - 0.5) * u * 0.014; plageLumpPath(g, R, x, y, r * 1.4, r, 0.8); g.fillStyle = kitCss(crackA, 0.18 + 0.16 * R()); g.fill(); }
     }
-    const dot = plageDot(), fo = P.foam * (0.35 + 0.65 * P.day);
-    for (let x = w * 0.01; x < tip + u * 0.02; x += u * (0.003 + 0.006 * R())) { const r = u * (0.002 + 0.005 * R()) * (0.5 + 0.5 * x / tip); g.globalAlpha = (0.2 + 0.35 * R()) * fo; g.drawImage(dot, x - r, base(x) - r * 0.25, r * 2, r * 0.5); }
+    for (let i = 0; i < 26; i++) { const x = tip * 0.95 * R(), y = yTop(x) + (wl - yTop(x)) * 0.45 * R() * R() + 2; plageLumpPath(g, R, x, y, u * (0.0015 + 0.003 * R()), u * (0.001 + 0.0018 * R()), 0.8); g.fillStyle = kitCss(R() < 0.6 ? [204, 126, 50] : [180, 150, 70], (0.12 + 0.12 * R()) * L.day * L.day); g.fill(); } // ochre lichen near the tops
+    for (const [y0, a0] of [[0.452, 0.18], [0.497, 0.14]]) { g.strokeStyle = kitCss(crackA, a0); g.lineWidth = 1.2; g.beginPath(); let on = true; for (let x = -4; x < tip; x += 5) { if (R() < 0.1) on = !on; const y = h * y0 + h * 0.03 * x / tip + u * 0.002 * nz(x / w * 20, 8.1); on ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke(); }
+    // dark streaks down the faces, from the top and from the overhangs
+    for (let i = 0; i < 22; i++) { const x = tip * 0.92 * R(), y = yTop(x) + (wl - yTop(x)) * 0.5 * R() * R(), ln = (wl - y) * (0.25 + 0.5 * R()), sw = 1 + 4 * R() * R(); g.fillStyle = lin(g, 0, y, 0, y + ln, [[0, kitCss(crackA, 0.12 + 0.12 * R())], [1, kitCss(crackA, 0)]]); g.fillRect(x, y, sw, ln); }
+    g.fillStyle = kitCss(crackA, 0.25); g.beginPath();
+    for (let i = 0; i < 90; i++) { const x = tip * R(), y = yTop(x) + (wl - yTop(x)) * R(), r = 0.5 + 1.2 * R() * R(); g.moveTo(x + r * 1.3, y); g.ellipse(x, y, r * 1.3, r, 0, 0, TAU); }
+    g.fill();
+    // its rounded tops, catching the light from above, worn and broken at their lower edge
+    { const tc0 = lit(ALB[2], 0.15 * side.dx, 0.88, 0.45); g.beginPath(); g.moveTo(-4, yTop(-4) - 2); for (let x = -4; x <= tip; x += 3) g.lineTo(x, yTop(x) - 1); for (let x = tip; x >= -4; x -= 4) { const y = yTop(x), d = Math.max(1, Math.min((wl - y) * 0.3, u * (0.004 + 0.005 * (0.5 + 0.5 * nz(x / w * 30, 6.6))))); g.lineTo(x, y + d); } g.closePath(); g.fillStyle = kitCss(tc0, 0.5); g.fill(); }
+    // a ledge across part of the cliff and a shorter overhang lower down: the lit lip of each, its shade cast under it
+    for (const [xa, xb, yy, dd] of [[0.008, 0.118, 0.468, 1], [0.165, 0.214, 0.503, 0.8]]) {
+      const pts = []; for (let x = w * xa; x <= w * xb; x += 4) { const e = Math.min(1, (x - w * xa) / (u * 0.02), (w * xb - x) / (u * 0.02)); pts.push([x, h * yy + u * 0.004 * nz(x / w * 25, yy * 9) + h * 0.012 * (x / w - xa), e]); }
+      const lipC = lit(ALB[2], 0.1, 0.92, 0.38);
+      for (let i = 1; i < pts.length; i++) {
+        const [x0, y0, e0] = pts[i - 1], [x1, y1, e1] = pts[i], e = Math.min(e0, e1) * (0.55 + 0.45 * n2(x0 / w * 30, yy * 7 + 1)), sd = u * 0.024 * dd * e;
+        if (sd < 0.5) continue;
+        g.fillStyle = lin(g, 0, y0, 0, y0 + sd, [[0, kitCss(crackA, 0.62 * e)], [0.35, kitCss(crackA, 0.32 * e)], [1, kitCss(crackA, 0)]]); g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.lineTo(x1, y1 + sd); g.lineTo(x0, y0 + sd); g.closePath(); g.fill(); // its shade below
+        const lh = u * 0.004 * e; g.fillStyle = lin(g, 0, y0 - lh, 0, y0, [[0, kitCss(lipC, 0)], [1, kitCss(lipC, 0.45 * e * (0.3 + 0.7 * L.k))]]); g.beginPath(); g.moveTo(x0, y0 - lh); g.lineTo(x1, y1 - lh); g.lineTo(x1, y1); g.lineTo(x0, y0); g.closePath(); g.fill(); // its top catching the light
+      }
+    }
+    for (const [xa, xb, dp] of [[0.05, 0.085, 0.016], [0.178, 0.2, 0.012]]) { // the notch the sea has worn deeper at the foot here and there
+      const x0 = w * xa, x1 = w * xb, ry = h * dp * 0.85, tp = (x) => wl - ry * Math.pow(Math.max(0, Math.sin(Math.PI * (x - x0) / (x1 - x0))), 0.35) * (0.75 + 0.25 * nz(x / w * 60, xa * 40 + 5));
+      g.beginPath(); g.moveTo(x0, wl + 1); for (let x = x0; x <= x1; x += 2) g.lineTo(x, tp(x)); g.lineTo(x1, wl + 1); g.closePath();
+      g.fillStyle = lin(g, 0, wl - ry, 0, wl, [[0, kitCss(crackA, 0.4)], [1, kitCss(crackA, 0.75)]]); g.fill();
+    }
+    // the mass: darker low down and toward the left edge, away from the open sea
+    g.fillStyle = lin(g, 0, h * 0.38, 0, wl, [[0, kitCss(crackA, 0)], [0.6, kitCss(crackA, 0.08)], [1, kitCss(crackA, 0.26)]]); g.fillRect(-4, top, W + 8, wl - top + 2);
+    g.fillStyle = lin(g, 0, 0, tip, 0, [[0, kitCss(crackA, 0.14)], [0.5, kitCss(crackA, 0)]]); g.fillRect(-4, top, W + 8, wl - top + 2);
+    g.restore();
+    // the wet dark rock just over the water
+    const wetC = kitMix(hz2(plageLit(L, [70, 66, 58], 0, 0.05, 0.98, 0.9, 0.5)), kitRGB(P.deep), 0.25);
+    g.save(); g.globalCompositeOperation = 'source-atop';
+    g.fillStyle = lin(g, 0, wl - h * 0.016, 0, wl, [[0, kitCss(wetC, 0)], [0.35, kitCss(wetC, 0.55)], [1, kitCss(wetC, 0.95)]]); g.fillRect(-4, wl - h * 0.016, W + 8, h * 0.016 + 2);
+    g.restore();
+    // a low shelf of rock at the water, jutting out here and there in front of the cliff: its top lit, its edge wet
+    for (const [xa, xb, th] of [[-0.005, 0.045, 0.006], [0.092, 0.118, 0.005], [0.205, 0.245, 0.007]]) {
+      const x0 = w * xa, x1 = w * xb, tp = (x) => wl + 1 - h * th * Math.max(0, Math.min(1, (x - x0) / (u * 0.01), (x1 - x) / (u * 0.008))) * (0.8 + 0.2 * nz(x / w * 40, xa * 50 + 3));
+      g.beginPath(); g.moveTo(x0, wl + 1.5); for (let x = x0; x <= x1; x += 3) g.lineTo(x, tp(x)); g.lineTo(x1, wl + 1.5); g.closePath();
+      g.fillStyle = lin(g, 0, wl - h * th, 0, wl + 1, [[0, kitCss(lit(ALB[1], 0.05, 0.9, 0.42))], [0.45, kitCss(kitMix(lit(ALB[1], 0, 0.3, 0.95), wetC, 0.3))], [1, kitCss(wetC)]]); g.fill();
+    }
+    // the maquis: clumps on the summit and down its front, on the shoulders, thicker in the hollows of the skyline and in the cracks;
+    // none on the low tip that the spray keeps bare
+    const LEAF = [[50, 72, 44], [58, 80, 48], [96, 106, 76], [62, 84, 52], [128, 118, 80]], pick = () => { const q = R(); return LEAF[q < 0.4 ? 0 : q < 0.62 ? 1 : q < 0.82 ? 2 : q < 0.96 ? 3 : 4]; };
+    const sh = [], xEnd = w * 0.205;
+    for (let x = -u * 0.01; x < xEnd; x += u * (0.006 + 0.006 * R())) {
+      const yt = yTop(Math.max(0, x)), hol = Math.max(0, yt - (yTop(Math.max(0, x - u * 0.03)) + yTop(x + u * 0.03)) / 2) / (u * 0.01), sum = 1 - plageSm(0.08, 0.13, x / w), far = 1 - plageSm(0.16, 0.205, x / w);
+      if (R() > 0.22 + 0.6 * sum + 0.5 * hol) continue;
+      const dep = h * (0.006 + 0.03 * sum + 0.012 * Math.min(1, hol)) * far;
+      for (let y = yt, n = 0; y <= yt + dep && n < 4; y += u * (0.01 + 0.006 * R()), n++) { const r = u * (0.005 + 0.012 * R() * (0.4 + 0.6 * Math.max(sum, Math.min(1, hol)))) * (0.6 + 0.4 * far) * (n ? 0.85 : 1); sh.push([x + (R() - 0.5) * u * 0.006, y - r * (n ? 0 : 0.25), r]); }
+    }
+    sh.sort((p, q) => p[1] - q[1]);
+    for (const [x, y, r] of sh) {
+      g.fillStyle = kitCss(crackA, 0.22); g.beginPath(); g.ellipse(x - side.dx * r * 0.4, y + r * 0.7, r * 1.25, r * 0.3, 0, 0, TAU); g.fill(); // its shade on the rock
+      plageShrub(g, L, R, x, y, r, pick(), side, hz2);
+    }
+    // blocks fallen at its foot, of all sizes, more of them toward the tip: two faces and a lit top each, wet at the water
+    const BL = [];
+    for (let i = 0; i < 13; i++) { const t = Math.pow(R(), 0.55), x = tip * (0.2 + 0.88 * t), s = (0.005 + 0.016 * R() * R()) * (0.7 + 0.6 * t); BL.push([x / w, s, 0.5 + 0.45 * R()]); }
+    BL.sort((a, b) => b[1] - a[1]);
+    for (const [bx, bs, bhk] of BL) {
+      const x = w * bx, bw = u * bs, bh = bw * bhk * 1.4, y = wl + 1, alb = ALB[R() * 3 | 0], rx = x + bw * (R() - 0.5) * 0.6, ty = y - bh;
+      const pts = [[x - bw, y], [x - bw * (0.7 + 0.25 * R()), y - bh * 0.7], [x - bw * 0.35, ty + bh * 0.08 * R()], [rx, ty - bh * 0.06], [x + bw * 0.55, y - bh * (0.75 + 0.2 * R())], [x + bw * 0.9, y - bh * 0.25], [x + bw, y]], dk = 0.3 + 0.3 * R();
+      const poly = (p) => { g.beginPath(); p.forEach(([px, py], i) => (i ? g.lineTo(px, py) : g.moveTo(px, py))); g.closePath(); };
+      poly([pts[0], pts[1], pts[2], pts[3], [rx, y]]); g.fillStyle = kitCss(kitMix(lit(alb, -0.6, 0.1, 0.8), wetC, dk)); g.fill();
+      poly([[rx, y], pts[3], pts[4], pts[5], pts[6]]); g.fillStyle = kitCss(kitMix(lit(alb, 0.6, 0.1, 0.8), wetC, dk)); g.fill();
+      poly([pts[2], pts[3], pts[4], [rx, ty + bh * 0.2]]); g.fillStyle = kitCss(kitMix(lit(alb, 0.1, 0.85, 0.5), wetC, dk * 0.5), 0.8); g.fill();
+      poly(pts); g.save(); g.clip(); g.fillStyle = lin(g, 0, y - bh * 0.5, 0, y, [[0, kitCss(wetC, 0)], [1, kitCss(wetC, 0.85)]]); g.fillRect(x - bw, y - bh, bw * 2, bh + 1); g.restore();
+    }
+    // its reflection: the point upside down under the waterline, broken by the ripples into slivers, darker and bluer than the rock,
+    // fading off; then the light of the sky on the ripples across it
+    const [tc, tg] = plageCv(W, H, sc); tg.setTransform(1, 0, 0, 1, 0, 0); tg.drawImage(cv, 0, 0);
+    const deepC = kitMix(kitRGB(P.deep), haze, 0.15), rl = bot - wl;
+    for (let y = wl + 1, k = 0; y < bot; y += 1.5, k++) {
+      const d = (y - wl) / rl, ys = wl - (y - wl) * 1.04, off = u * 0.004 * (0.3 + d) * nz(k * 0.37, 5.1) + (k % 2 ? 1 : -1) * u * 0.0012 * d;
+      if (ys < top + 1) break;
+      g.globalAlpha = 0.85 * Math.pow(1 - d, 1.1) * (0.75 + 0.25 * n2(k * 0.5, 2.2));
+      g.drawImage(tc, 0, (ys - top) * sc, tc.width, 1.5 * sc, off, y, W, 1.5);
+    }
     g.globalAlpha = 1;
-    // its reflection: the dark of the rock, broken by the ripples, fading
-    for (let y = h * 0.531, k = 0; y < bot; y += 2, k++) { const d = (y - h * 0.531) / (bot - h * 0.531); g.fillStyle = kitCss(kitMix(scS, kitRGB(P.deep), 0.5), 0.3 * (1 - d) * (k % 3 ? 1 : 0.5)); g.fillRect((k % 4) * 2 - 4, y, tip * (1 - 0.35 * d) - (k % 5) * 3, 1); }
+    g.save(); g.globalCompositeOperation = 'source-atop';
+    g.fillStyle = kitCss(deepC, 0.32); g.fillRect(-4, wl + 1, W + 8, rl);
+    g.strokeStyle = kitCss(kitMix(kitRGB(P.W.haze), [255, 255, 255], 0.2 * P.day), 0.18 + 0.12 * P.day); g.lineWidth = 1; g.beginPath();
+    for (let i = 0; i < 70; i++) { const y = wl + 2 + rl * Math.pow(R(), 0.8), x = W * R(), l = u * (0.006 + 0.02 * R()) * (0.5 + (y - wl) / rl); g.moveTo(x, y); g.lineTo(x + l, y); }
+    g.stroke();
+    g.restore();
+    // the foam: a seam along its foot, thicker round the blocks and the tip, and a lace drifting off on the water
+    const dot = plageDot(), fo = P.foam * (0.35 + 0.65 * P.day);
+    for (let x = 0; x < tip + u * 0.03; x += u * (0.0012 + 0.0025 * R())) { const r = u * (0.0015 + 0.0035 * R() * R()) * (0.6 + 0.6 * x / tip), sw = 0.5 + 0.5 * n2(x / w * 40, 7.7); g.globalAlpha = (0.12 + 0.35 * R()) * fo * (0.35 + 0.65 * sw); g.drawImage(dot, x - r * 1.6, wl - r * 0.35, r * 3.2, r * 0.75); }
+    for (const [bx, bs] of BL) { const x = w * bx, bw = u * bs; for (let i = 0; i < 6; i++) { const r = bw * (0.25 + 0.4 * R()), xx = x + (R() * 2 - 1) * bw * 1.2; g.globalAlpha = (0.2 + 0.3 * R()) * fo; g.drawImage(dot, xx - r * 1.5, wl - r * 0.3, r * 3, r * 0.65); } }
+    for (let i = 0; i < 26; i++) { const t = R(), x = tip * (0.25 + 0.85 * Math.sqrt(t)), y = wl + 2 + h * 0.016 * R() * R(), l = u * (0.008 + 0.022 * R()); g.globalAlpha = (0.1 + 0.18 * R()) * fo * (1 - (y - wl) / (h * 0.02)); g.drawImage(dot, x - l, y - 0.8, l * 2, 1.6); }
+    g.globalAlpha = 1;
     return { cv, x: 0, y: top, w: W, h: H };
   }
 
-  // The pine: its trunk, a little bent, gives off its limbs from two-thirds of its height up, four of them that climb and spread
-  // like the ribs of an umbrella and fork again under the crown; the crown a few broad cushions of needles (a high flat roof, lower
-  // shoulders over it), each a flat-bottomed dome: dark under, clumps of needles lit on their tops and on the light's side, the
-  // rim of its top lit. Then the maquis at its foot. Sizes in G.K (the frame's height, or less on a narrow screen).
-  const PLAGE_PINE_LIMBS = [ // [where it leaves the trunk (1 = the fork), two control points from there and its end from the fork, in K; half-widths at its foot and its end]
-    [0.86, [-0.025, -0.03, -0.095, -0.07], [-0.17, -0.134], 0.0078, 0.003],
-    [1, [-0.015, -0.05, -0.05, -0.105], [-0.075, -0.19], 0.0074, 0.0028],
-    [1, [0.012, -0.055, 0.035, -0.11], [0.05, -0.196], 0.0072, 0.0028],
-    [0.93, [0.035, -0.035, 0.105, -0.07], [0.16, -0.142], 0.0076, 0.003],
+  // The pine: an umbrella pine on the point. Its trunk leans a little toward the sea and bends; at two-thirds of its height it parts
+  // into four limbs that climb, spread like the ribs of an umbrella and break into branches, each ending under a cluster of the
+  // crown. The crown: a broad flat dome of clusters of needles, a roof and a lower tier under it, the sky through the gaps between
+  // them and the branches across the gaps; each cluster made of tufts lit as its place on the dome turns to the light (bright on its
+  // top and on the light's side, its needles glowing at the rim, dark olive under it), the lower tier in the roof's shade. Then the
+  // maquis at its foot. Sizes in G.K (the frame's height, or less on a narrow screen), from the foot of the trunk.
+  const PLAGE_PINE_TRUNK = [0, 0.012, 0.004, -0.07, 0.016, -0.15, 0.042, -0.218]; // its foot, two control points, the fork
+  const PLAGE_PINE_LIMBS = [ // [where it leaves the trunk (1 = the fork), two control points and its end; half-widths at its foot and its end]
+    [0.64, [-0.004, -0.205], [-0.085, -0.258], [-0.19, -0.29], 0.0088, 0.0036],
+    [1, [0.03, -0.272], [-0.028, -0.292], [-0.062, -0.318], 0.0074, 0.0033],
+    [1, [0.056, -0.272], [0.07, -0.302], [0.09, -0.322], 0.0072, 0.0032],
+    [0.84, [0.07, -0.248], [0.15, -0.264], [0.226, -0.292], 0.008, 0.0034],
   ];
-  const PLAGE_PINE_TWIGS = [ // [limb, where on it, to (dx, dy) from the fork, half-widths]: each ends inside a cushion
-    [0, 0.55, -0.29, -0.113, 0.0034, 0.0014], [3, 0.6, 0.27, -0.104, 0.0032, 0.0013], [1, 0.6, -0.15, -0.186, 0.0032, 0.0013],
-    [2, 0.55, 0.13, -0.183, 0.003, 0.0012], [2, 0.45, 0.04, -0.137, 0.0028, 0.0012], [1, 0.4, -0.1, -0.173, 0.0026, 0.0011],
-  ];
-  const PLAGE_PINE_MASS = [ // [the middle of its underside from the fork (dx, dy), half-width, height] in K: the roof first, the lower ones over it
-    [-0.01, -0.168, 0.2, 0.082], [-0.3, -0.104, 0.055, 0.03], [0.035, -0.128, 0.08, 0.036], [-0.19, -0.116, 0.115, 0.05], [0.172, -0.126, 0.12, 0.054], [0.272, -0.094, 0.058, 0.03],
+  const PLAGE_PINE_CL = [ // the crown's clusters [x, y of the middle, half-width, half-height, tier: 0 the roof, 1 under it], the far ones first
+    [-0.095, -0.414, 0.032, 0.013, 0], [-0.3, -0.356, 0.095, 0.034, 0], [-0.16, -0.378, 0.11, 0.04, 0], [-0.01, -0.39, 0.12, 0.043, 0], [0.15, -0.378, 0.105, 0.04, 0], [0.272, -0.35, 0.072, 0.031, 0],
+    [-0.232, -0.316, 0.072, 0.026, 1], [-0.06, -0.332, 0.082, 0.028, 1], [0.112, -0.333, 0.076, 0.027, 1], [0.245, -0.31, 0.056, 0.022, 1],
+    [0.326, -0.322, 0.026, 0.013, 1], [-0.142, -0.3, 0.024, 0.011, 1],
   ];
   function plagePineBez(p, t) { const v = 1 - t; return [v * v * v * p[0] + 3 * v * v * t * p[2] + 3 * v * t * t * p[4] + t * t * t * p[6], v * v * v * p[1] + 3 * v * v * t * p[3] + 3 * v * t * t * p[5] + t * t * t * p[7]]; }
   // A tapering limb along a cubic: its outline, filled across its width with the light a round branch takes (shade toward us,
@@ -14437,93 +14893,109 @@ window.LISEUSE_SCENES = (() => {
     for (let i = 1; i < n - 1; i++) { if (R() > plates * 0.7) continue; const f = sgn * (0.2 + 0.6 * R()), x = P0[i][0] + N0[i][0] * rr(i) * f, y = P0[i][1] + N0[i][1] * rr(i) * f, ax = P0[i + 1][0] - P0[i][0], ay = P0[i + 1][1] - P0[i][1], wd = rr(i) * (0.14 + 0.12 * R()); g.moveTo(x - ax * 0.6, y - ay * 0.6); g.lineTo(x + N0[i][0] * wd, y + N0[i][1] * wd); g.lineTo(x + ax * 0.7, y + ay * 0.7); g.lineTo(x - N0[i][0] * wd, y - N0[i][1] * wd); g.closePath(); }
     g.fill();
   }
-  // A cushion of the crown round the middle of its underside (cx, cy): a dome hg high and hw wide on each side, its top scalloped
-  // by round bumps, small tufts hanging under its flat underside. As one path (all its parts turn the same way: their union).
-  function plagePineMass(R, cx, cy, hw, hg, K) {
-    const p = new Path2D(), n = 24, top = (s) => cy - hg * (0.15 + 0.85 * Math.sqrt(Math.max(0, 1 - s * s))) * (0.95 + 0.05 * Math.sin(s * 5 + cx)), bot = (s) => cy + hg * 0.1 * (1 - s * s);
-    p.moveTo(cx - hw, cy);
-    for (let i = 0; i <= n; i++) { const s = -1 + 2 * i / n; p.lineTo(cx + s * hw, top(s)); }
-    for (let i = n; i >= 0; i--) { const s = -1 + 2 * i / n; p.lineTo(cx + s * hw, bot(s)); }
-    p.closePath();
-    const rb0 = Math.min(hg * 0.5, 0.026 * K), bumps = [];
-    for (let s = -0.97; s < 0.97;) { const e = Math.sqrt(Math.max(0, 1 - s * s)), r = rb0 * (0.5 + 0.5 * e) * (0.8 + 0.4 * R()), x = cx + s * hw, y = top(s) + r * 0.5; bumps.push([x, y, r, s]); p.moveTo(x + r, y); p.arc(x, y, r, 0, TAU); s += r * (1.0 + 0.5 * R()) / hw; }
-    const tufts = [];
-    for (let s = -0.88; s < 0.88;) { const r = 0.011 * K * (0.6 + 0.6 * R()), x = cx + s * hw, y = bot(s) + r * 0.15; tufts.push([x, y, r]); p.moveTo(x + r * 1.5, y); p.ellipse(x, y, r * 1.5, r * 0.55, 0, 0, TAU); s += r * (2.4 + 1.6 * R()) / hw; }
-    return { p, bumps, tufts, top, bot, y0: cy - hg - rb0 * 0.5, y1: cy + hg * 0.1 + 0.008 * K };
-  }
-  // The crown, on its own canvas (the sprite's frame) so that its clumps keep inside it: cushion by cushion.
-  function plagePineCrown(G, L, R, kx, ky, x0, y0, cw, ch, dn) {
-    const K = G.K, [cv, g] = plageCv(cw, ch, dn), side = plageLightSide(L), hz2 = (c) => kitMix(c, L.haze, 0.06), S = K / 900;
-    g.translate(-x0, -y0); g.lineCap = 'round';
-    const needle = [54, 78, 48], tipC = [104, 124, 66];
-    const underD = hz2(plageLit(L, needle, 0, -0.9, 0.45, 0.7, 0.9)), under = hz2(plageLit(L, needle, 0, -0.4, 0.9, 0.9, 0.8)), topC = hz2(plageLit(L, needle, 0.15 * side.dx, 0.6, 0.8, 1, 0.2));
-    const rimC = hz2(plageLit(L, tipC, side.dx, -side.dy, 0.1, 1, 0)), rimA = 0.5 * (0.25 + 0.75 * L.k), [rcv, rg] = plageCv(cw, ch, dn);
-    for (let mi = 0; mi < PLAGE_PINE_MASS.length; mi++) {
-      const [dx, dy, hw0, hg0] = PLAGE_PINE_MASS[mi], cx = kx + dx * K, cy = ky + dy * K, hw = hw0 * K, hg = hg0 * K, M = plagePineMass(R, cx, cy, hw, hg, K);
-      // the needles' fringe round its outline (under the fill, so the edge goes soft): short strokes out from the bumps, in from the tufts
-      g.lineWidth = Math.max(0.5, 0.75 * S);
-      g.strokeStyle = kitCss(topC, 0.55); g.beginPath();
-      for (const [x, y, r] of M.bumps) for (let k = 0; k < 6; k++) { const a = -Math.PI / 2 + (R() - 0.5) * 2.6, ln = (1.5 + 2.5 * R()) * S; g.moveTo(x + Math.cos(a) * r * 0.85, y + Math.sin(a) * r * 0.85); g.lineTo(x + Math.cos(a) * (r + ln), y + Math.sin(a) * (r + ln)); }
-      g.stroke();
-      g.strokeStyle = kitCss(underD, 0.6); g.beginPath();
-      for (const [x, y, r] of M.tufts) for (let k = 0; k < 4; k++) { const ox = (R() - 0.5) * r * 2.4, ln = (1.5 + 2 * R()) * S; g.moveTo(x + ox, y); g.lineTo(x + ox * 1.1, y + r * 0.4 + ln); }
-      g.stroke();
-      g.fillStyle = lin(g, 0, M.y0, 0, M.y1, [[0, kitCss(topC)], [0.45, kitCss(kitMix(topC, under, 0.6))], [0.8, kitCss(under)], [1, kitCss(underD)]]); g.fill(M.p);
-      g.save(); g.clip(M.p);
-      // clumps of needles, the high ones first, the lower ones over them: each lit on its top as its place on the dome turns to the
-      // light (nx, ny, nz: a normal over the dome, up on its top, toward us lower down, under on its underside)
-      const n = Math.round(1.7 * hw * hg / Math.pow(0.015 * K, 2)), cl = [];
-      for (let i = 0; i < n; i++) {
-        const s = R() * 2 - 1, yt = M.top(s), yb = M.bot(s), v = Math.pow(R(), 0.65), e = Math.sqrt(1 - s * s);
-        cl.push([cx + s * hw, yb - (yb - yt) * v, 0.0155 * K * (0.55 + 0.6 * R()) * (0.55 + 0.45 * e), v, s]);
+  // The trunk's bark: rows of the orange-red plates of an old umbrella pine up it, each lit as the trunk turns to the light, the dark
+  // furrows between them; drawn over the trunk's own shading (plagePineLimb), inside its outline.
+  function plagePineBark(g, L, p, r0, r1, bark, R) {
+    const n = 40, P0 = [], N0 = [];
+    for (let i = 0; i <= n; i++) { const t = i / n, a = plagePineBez(p, t), b = plagePineBez(p, Math.min(1, t + 0.01)), c0 = plagePineBez(p, Math.max(0, t - 0.01)), dx = b[0] - c0[0], dy = b[1] - c0[1], l = Math.hypot(dx, dy) || 1; P0.push(a); N0.push([-dy / l, dx / l]); }
+    const rr = (t) => (r0 + (r1 - r0) * Math.pow(t, 0.85)) * (1 + 0.05 * Math.sin(t * 17 + r0 * 900));
+    const pt = (t, f) => { const i = Math.max(0, Math.min(n - 1, Math.floor(t * n))), q = t * n - i, a = P0[i], b = P0[i + 1], N = N0[i], r = rr(t); return [a[0] + (b[0] - a[0]) * q + N[0] * r * f, a[1] + (b[1] - a[1]) * q + N[1] * r * f]; };
+    g.save(); g.beginPath();
+    for (let i = 0; i <= n; i++) { const [x, y] = pt(i / n, 1); g.lineTo(x, y); }
+    for (let i = n; i >= 0; i--) { const [x, y] = pt(i / n, -1); g.lineTo(x, y); }
+    g.closePath(); g.clip();
+    const fis = plageLit(L, bark.fis, 0, 0, 1, 0.8, 0.3);
+    for (let f = -1.1 + 0.15 * R(); f < 1;) { // column by column, each plate its own length: they do not line up across the trunk
+      const fw = 0.3 + 0.28 * R();
+      for (let t = -0.02 + 0.06 * R(); t < 0.98;) {
+        const ph = 0.04 + 0.08 * R(), fm = Math.max(-0.95, Math.min(0.95, f + fw / 2)), N = N0[Math.max(0, Math.min(n, Math.round((t + ph / 2) * n)))], gp = 0.07 + 0.05 * R(), j = () => (R() - 0.5) * 0.08;
+        const col = plageLit(L, kitMix(bark.plate, bark.base, 0.45 * R()), N[0] * fm, -N[1] * fm, Math.sqrt(1 - fm * fm), 0.85, 0.45);
+        const q = [pt(t + ph * 0.1, f + gp + j()), pt(t + ph * (0.05 + 0.15 * R()), f + fw - gp + j()), pt(t + ph * (0.85 + 0.1 * R()), f + fw - gp * 1.3 + j()), pt(t + ph * 0.94, f + gp * 1.3 + j())];
+        g.fillStyle = kitCss(col, 0.55 + 0.3 * R()); g.beginPath(); q.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.fill();
+        g.strokeStyle = kitCss(fis, 0.35); g.lineWidth = Math.max(0.5, r0 * 0.05); g.beginPath(); g.moveTo(q[3][0], q[3][1]); g.lineTo(q[2][0], q[2][1]); g.stroke(); // the shade under the plate's lower edge
+        t += ph * (0.92 + 0.12 * R());
       }
-      cl.sort((a, b) => a[1] - b[1]);
-      for (const [x, y, r, v, s] of cl) {
-        const nx = s * 0.7, ny = -0.35 + 1.1 * v, nz = Math.sqrt(Math.max(0.05, 1 - nx * nx - Math.min(0.9, ny * ny)));
-        const col = hz2(plageLit(L, kitMix(needle, tipC, 0.3 * v), nx, ny, nz, 1, 0.3)), hi = hz2(plageLit(L, tipC, nx, Math.min(1, ny + 0.4), nz * 0.75, 1, 0.2)), lo = kitMix(col, underD, 0.25 + 0.25 * (1 - v));
-        plageLumpPath(g, R, x, y, r * 1.45, r, 0.6);
-        g.fillStyle = lin(g, 0, y - r, 0, y + r * 0.6, [[0, kitCss(kitMix(col, hi, 0.5))], [0.5, kitCss(col)], [1, kitCss(lo)]]); g.fill();
-      }
-      // the needles' grain on the upper clumps
-      g.lineWidth = Math.max(0.5, 0.65 * S); g.strokeStyle = kitCss(hz2(plageLit(L, tipC, side.dx * 0.5, 0.8, 0.4, 1, 0.1)), 0.22 * (0.5 + 0.5 * L.k)); g.beginPath();
-      for (let i = 0; i < n * 3; i++) { const s = R() * 2 - 1, yt = M.top(s), yb = M.bot(s), v = 0.35 + 0.65 * Math.sqrt(R()), x = cx + s * hw, y = yb - (yb - yt) * v, ln = (1.5 + 2.5 * R()) * S, a = -Math.PI / 2 + (R() - 0.5) * 2.2; g.moveTo(x, y); g.lineTo(x + Math.cos(a) * ln, y + Math.sin(a) * ln); }
-      g.stroke();
-      // the shade under it, and its underside
-      const ys = cy - hg * 0.4; g.fillStyle = lin(g, 0, ys, 0, M.y1, [[0, kitCss(under, 0)], [0.6, kitCss(under, 0.75)], [1, kitCss(underD, 0.95)]]); g.fillRect(cx - hw - 0.03 * K, ys, 2 * hw + 0.06 * K, M.y1 - ys + 2);
-      // the rim of its top on the light's side, thin when the light is low in front of us, a cap when it is high: the bumps' union
-      // less the same bumps pushed away from the light, in one even tone
-      const o = side.o * 0.8;
-      rg.setTransform(1, 0, 0, 1, 0, 0); rg.globalCompositeOperation = 'source-over'; rg.clearRect(0, 0, rcv.width, rcv.height); rg.setTransform(dn, 0, 0, dn, -x0 * dn, -y0 * dn);
-      rg.fillStyle = kitCss(rimC); rg.beginPath(); for (const [x, y, r] of M.bumps) { rg.moveTo(x + r, y); rg.arc(x, y, r, 0, TAU); } rg.fill();
-      rg.globalCompositeOperation = 'destination-out'; rg.beginPath(); for (const [x, y, r] of M.bumps) { const xs = x - side.dx * r * o, ys = y - side.dy * r * o; rg.moveTo(xs + r * 1.03, ys); rg.arc(xs, ys, r * 1.03, 0, TAU); } rg.fill();
-      g.globalAlpha = rimA; g.drawImage(rcv, x0, y0, cw, ch); g.globalAlpha = 1;
-      g.restore();
+      f += fw;
     }
-    return cv;
+    g.restore();
+  }
+  // A cluster of the crown round (cx, cy), rx wide and ry high on each side: a dark core, then its tufts of needles from its top down
+  // (the lower ones nearer us), each lit as its place on the cluster's dome turns to the light, a crescent of light on the rims of
+  // those that face it, the needles' fringe on the upper ones. Lt: the light it gets (the lower tier is in the roof's shade).
+  function plagePineCluster(g, Lt, R, cx, cy, rx, ry, K, side, hz2, C) {
+    const S = K / 900, nd = C.needle, at = (s, v) => { const nx = s * 0.8, ny = v > 0 ? 0.12 + 0.88 * v : 0.12 + 1.0 * v, nzz = Math.sqrt(Math.max(0.05, 1 - nx * nx - ny * ny)); return [nx, ny, nzz]; };
+    const litAt = (s, v, a) => { const [nx, ny, nzz] = at(s, v); return hz2(plageLit(Lt, kitMix(nd, C.tip, 0.35 * Math.max(0, v) * a), nx, ny, nzz, 1, 0.35)); };
+    // its dabs of needles, on the dome of the cluster, more of them on its top and round its rim, small, the high ones first
+    const n = Math.round(3.4 * rx * ry / Math.pow(0.0078 * K, 2)), tf = [];
+    for (let i = 0; i < n; i++) {
+      const s = R() * 2 - 1, e = Math.sqrt(1 - s * s), v = 1 - 2 * Math.pow(R(), 1.15), y = v > 0 ? cy - v * ry * (0.2 + 0.8 * e) * (0.92 + 0.12 * Math.sin(s * 3.1 + cx)) : cy - v * ry * (0.45 + 0.35 * Math.max(0, Math.sin(s * 7.3 + cy))) * e;
+      tf.push([cx + s * rx * (0.94 + 0.08 * R()), y, 0.0078 * K * (0.6 + 0.7 * R()) * (0.65 + 0.35 * e), s, v]);
+    }
+    tf.sort((a, b) => a[1] - b[1]);
+    // its mass under them: the union of a core and the dabs, its light from the top of the dome to its dark underside
+    const mass = new Path2D(); mass.ellipse(cx, cy + ry * 0.08, rx * 0.86, ry * 0.7, 0, 0, TAU);
+    for (const [x, y, r] of tf) { mass.moveTo(x + r * 1.2, y); mass.ellipse(x, y, r * 1.2, r * 0.8, 0, 0, TAU); }
+    g.fillStyle = lin(g, 0, cy - ry, 0, cy + ry * 0.6, [[0, kitCss(kitMix(litAt(0.3 * side.dx, 0.7, 1), C.underD, 0.3))], [0.5, kitCss(kitMix(litAt(0, 0, 1), C.underD, 0.35))], [1, kitCss(C.underD)]]); g.fill(mass);
+    // the dabs, each a little lighter or darker than its place says, the low ones in the cluster's shade
+    for (const [x, y, r, s, v] of tf) {
+      const c0 = litAt(s, v, 1), q = 0.85 + 0.3 * R(), col = c0.map((c) => Math.min(255, c * q));
+      plageLumpPath(g, R, x, y, r * 1.6, r, 0.6); g.fillStyle = kitCss(v < -0.2 ? kitMix(col, C.underD, 0.45) : col); g.fill();
+    }
+    // the needles' fringe: short strokes out of the dabs on its top and its rim, a glint of light on those toward the light
+    g.lineCap = 'round'; g.lineWidth = Math.max(0.55, 0.75 * S);
+    const ra = 0.55 * (0.25 + 0.75 * Lt.k), top = tf.filter((t) => t[4] > 0.45 || Math.abs(t[3]) > 0.85);
+    g.strokeStyle = kitCss(litAt(0.2 * side.dx, 0.8, 1), 0.75); g.beginPath();
+    for (const [x, y, r, s] of top) for (let k = 0; k < 3; k++) { const a = -Math.PI / 2 + s * 0.9 + (R() - 0.5) * 1.6, ln = r * (0.9 + 0.8 * R()); g.moveTo(x + Math.cos(a) * r * 0.6, y + Math.sin(a) * r * 0.5); g.lineTo(x + Math.cos(a) * (r * 0.6 + ln) * 1.25, y + Math.sin(a) * (r * 0.5 + ln)); }
+    g.stroke();
+    g.strokeStyle = kitCss(C.rim, ra); g.beginPath();
+    for (const [x, y, r, s, v] of top) { const [nx, ny, nzz] = at(s, v); if (Math.max(nx * Lt.lx + ny * Lt.ly - nzz * Lt.lz, 0.8 * Lt.lz * s * side.dx) < 0.05) continue; for (let k = 0; k < 2; k++) { const a = Math.atan2(side.dy, side.dx) + (R() - 0.5) * 1.4, ln = r * (0.6 + 0.6 * R()); g.moveTo(x + Math.cos(a) * r * 0.4, y + Math.sin(a) * r * 0.3); g.lineTo(x + Math.cos(a) * (r * 0.5 + ln) * 1.3, y + Math.sin(a) * (r * 0.4 + ln)); } }
+    g.stroke();
+    // the shade on its underside, where its dabs hang over the branches
+    g.fillStyle = lin(g, 0, cy, 0, cy + ry * 0.6, [[0, kitCss(C.underD, 0)], [1, kitCss(C.underD, 0.5)]]);
+    plageLumpPath(g, R, cx, cy + ry * 0.28, rx * 0.8, ry * 0.3, 0.8); g.fill();
   }
   function plagePineSpr(G, P, D, L) {
-    const { w, h, K } = G, dn = plageDens(), R = mulberry(90217), fx = G.pine.x, fy = G.pine.y;
-    const x0 = fx - 0.36 * K, y0 = fy - 0.47 * K, x1 = fx + 0.37 * K, y1 = fy + 0.035 * K, cw = x1 - x0, ch = y1 - y0, [cv, g] = plageCv(cw, ch, dn);
+    const { K } = G, dn = plageDens(), R = mulberry(90219), fx = G.pine.x, fy = G.pine.y;
+    const x0 = fx - 0.4 * K, y0 = fy - 0.46 * K, x1 = fx + 0.36 * K, y1 = fy + 0.03 * K, cw = x1 - x0, ch = y1 - y0, [cv, g] = plageCv(cw, ch, dn);
     g.translate(-x0, -y0);
-    const side = plageLightSide(L), haze = L.haze, hz2 = (c) => kitMix(c, haze, 0.06);
-    const bark = { base: [128, 84, 64], fis: [52, 38, 36], plate: [176, 104, 70] };
-    // the trunk: from below the maquis up to the fork, a slight S
-    const kx = fx + 0.022 * K, ky = fy - 0.2 * K, trunk = [fx, fy + 0.03 * K, fx + 0.002 * K, fy - 0.07 * K, fx + 0.027 * K, fy - 0.13 * K, kx, ky];
-    // the limbs first (the trunk covers their feet), then the twigs into the crown
-    const limbs = PLAGE_PINE_LIMBS.map(([at, c, e, r0, r1]) => { const [sx, sy] = plagePineBez(trunk, at); return [sx, sy, sx + c[0] * K, sy + c[1] * K, sx + c[2] * K, sy + c[3] * K, kx + e[0] * K, ky + e[1] * K, r0 * K, r1 * K]; });
-    for (const [li, at, dx, dy, r0, r1] of PLAGE_PINE_TWIGS) { const lb = limbs[li], s = plagePineBez(lb, at), tx = kx + dx * K, ty = ky + dy * K; plagePineLimb(g, L, [s[0], s[1], s[0] + (tx - s[0]) * 0.3, s[1] + (ty - s[1]) * 0.55, s[0] + (tx - s[0]) * 0.7, s[1] + (ty - s[1]) * 0.85, tx, ty], r0 * K, r1 * K, bark, R, 0); }
+    const side = plageLightSide(L), hz2 = (c) => kitMix(c, L.haze, 0.06), at = (p) => [fx + p[0] * K, fy + p[1] * K];
+    const bark = { base: [124, 82, 62], fis: [50, 38, 36], plate: [180, 108, 72] };
+    const C = { needle: [52, 76, 46], tip: [112, 132, 70] };
+    C.underD = hz2(plageLit(L, C.needle, 0, -0.85, 0.5, 0.7, 0.9)); C.rim = hz2(plageLit(L, kitMix(C.tip, [200, 196, 120], 0.25), side.dx, -side.dy, 0.15, 1, 0)); C.fringe = hz2(plageLit(L, C.tip, side.dx * 0.4, 0.8, 0.4, 1, 0.1));
+    const T = PLAGE_PINE_TRUNK.map((v, i) => (i % 2 ? fy + v * K : fx + v * K));
+    // the limbs, then the branches from their ends to the clusters (the crown hides where they go in), then the trunk over their feet
+    const limbs = PLAGE_PINE_LIMBS.map(([a, c1, c2, e, r0, r1]) => { const s = plagePineBez(T, a), p1 = at(c1), p2 = at(c2), p3 = at(e); return [s[0], s[1], p1[0], p1[1], p2[0], p2[1], p3[0], p3[1], r0 * K, r1 * K]; });
+    const ends = limbs.map((l) => [l[6], l[7]]);
+    for (const [cx0, cy0, rx0, ry0, tier] of PLAGE_PINE_CL) {
+      const cx = fx + cx0 * K, cy = fy + cy0 * K, rx = rx0 * K, ry = ry0 * K;
+      let bi = 0; ends.forEach((e, i) => { if (Math.abs(e[0] - cx) < Math.abs(ends[bi][0] - cx)) bi = i; });
+      const lb = limbs[bi];
+      for (let j = 0; j < (tier ? 1 : 2); j++) {
+        const s = plagePineBez(lb, j ? 0.62 + 0.25 * R() : 0.85 + 0.15 * R()), tx = cx + (j ? Math.sign(cx - s[0] || 1) * 0.45 : 0.1) * rx * (0.8 + 0.4 * R()), ty = cy + ry * (0.1 + 0.2 * R()), dx = tx - s[0], dy = ty - s[1];
+        plagePineLimb(g, L, [s[0], s[1], s[0] + dx * 0.2, s[1] + dy * 0.5, s[0] + dx * 0.65, s[1] + dy * 0.92, tx, ty], (j ? 0.0026 : 0.0034) * K, 0.0012 * K, bark, R, 0);
+      }
+    }
     for (const lb of limbs) plagePineLimb(g, L, lb, lb[8], lb[9], bark, R, 0.35);
-    plagePineLimb(g, L, trunk, 0.0135 * K, 0.0094 * K, bark, R, 0.9);
-    // the trunk's flare at its foot
-    g.fillStyle = kitCss(plageLit(L, bark.base, 0, 0, 1, 0.8, 0.5)); g.beginPath(); g.ellipse(fx, fy + 0.012 * K, 0.017 * K, 0.008 * K, 0, 0, TAU); g.fill();
-    // the crown
-    g.drawImage(plagePineCrown(G, L, R, kx, ky, x0, y0, cw, ch, dn), x0, y0, cw, ch);
+    plagePineLimb(g, L, T, 0.0145 * K, 0.0098 * K, bark, R, 0);
+    plagePineBark(g, L, T, 0.0145 * K, 0.0098 * K, bark, R);
+    // the crown's shade on the limbs and on the top of the trunk
+    g.save(); g.globalCompositeOperation = 'source-atop';
+    g.fillStyle = lin(g, 0, fy - 0.2 * K, 0, fy - 0.32 * K, [[0, kitCss(C.underD, 0)], [1, kitCss(C.underD, 0.75)]]); g.fillRect(x0, y0, cw, ch);
+    g.restore();
+    // the crown, on its own canvas: the roof, then the lower tier in its shade; then a light shade over its lower half
+    const [ccv, cg] = plageCv(cw, ch, dn); cg.translate(-x0, -y0);
+    const Lo = Object.assign({}, L, { k: L.k * 0.4 });
+    for (const tier of [0, 1]) for (const [cx0, cy0, rx0, ry0, t] of PLAGE_PINE_CL) if (t === tier) plagePineCluster(cg, tier ? Lo : L, R, fx + cx0 * K, fy + cy0 * K, rx0 * K, ry0 * K, K, side, hz2, C);
+    cg.globalCompositeOperation = 'source-atop';
+    cg.fillStyle = lin(cg, 0, fy - 0.43 * K, 0, fy - 0.27 * K, [[0, kitCss(C.underD, 0)], [0.45, kitCss(C.underD, 0.06)], [1, kitCss(C.underD, 0.35)]]); cg.fillRect(x0, y0, cw, ch);
+    cg.fillStyle = lin(cg, fx - 0.3 * K, 0, fx + 0.36 * K, 0, side.dx > 0 ? [[0, kitCss(C.rim, 0)], [1, kitCss(C.rim, 0.1 * L.k)]] : [[0, kitCss(C.rim, 0.1 * L.k)], [1, kitCss(C.rim, 0)]]); cg.fillRect(x0, y0, cw, ch);
+    g.drawImage(ccv, x0, y0, cw, ch);
     // the maquis round its foot, hiding where the trunk meets the rock
-    const scrub = [60, 84, 50], scS = hz2(plageLit(L, scrub, 0, -0.2, 0.95, 1, 0.5)), scM = hz2(plageLit(L, scrub, 0.2 * side.dx, 0.4, 0.8)), scL = hz2(plageLit(L, scrub, side.dx, -side.dy, 0.15));
-    for (const [ox, oy, r] of [[-0.03, 0.012, 0.016], [0.018, 0.014, 0.014], [-0.005, 0.02, 0.012], [0.04, 0.02, 0.011], [-0.05, 0.022, 0.012]]) {
+    const LEAF = [[50, 72, 44], [58, 80, 48], [96, 106, 76]];
+    for (const [ox, oy, r, li] of [[-0.034, 0.004, 0.013, 0], [0.026, 0.006, 0.012, 1], [-0.008, 0.011, 0.011, 2], [0.05, 0.012, 0.009, 0], [-0.058, 0.012, 0.01, 1]]) {
       const x = fx + ox * K, y = fy + oy * K, rr = r * K;
-      plageLumpPath(g, R, x, y, rr * 1.4, rr, 0.5); g.fillStyle = lin(g, 0, y - rr, 0, y + rr * 0.6, [[0, kitCss(scM)], [1, kitCss(kitMix(scS, scM, 0.3))]]); g.fill();
-      g.save(); g.clip(); g.translate(x, y); g.scale(1.4, 1); plageCrescent(g, 0, 0, rr, side.dx, side.dy, side.o, kitCss(scL, 0.6)); g.restore();
+      g.fillStyle = kitCss([30, 26, 28], 0.2); g.beginPath(); g.ellipse(x - side.dx * rr * 0.4, y + rr * 0.7, rr * 1.25, rr * 0.3, 0, 0, TAU); g.fill();
+      plageShrub(g, L, R, x, y, rr, LEAF[li], side, hz2);
     }
     return { cv, x: x0, y: y0, cw, ch, px: fx, py: fy };
   }
@@ -19398,15 +19870,34 @@ window.LISEUSE_SCENES = (() => {
       blob(c, pts); c.fillStyle = cols[(R() * cols.length) | 0]; c.fill();
       c.fillStyle = coteA(coteRGB(lt), 0.3 * (0.4 + 0.6 * day)); blob(c, coteBlobPts(x, cy - r * 0.4, r * 0.7, r * 0.4, R, 6, 0.9)); c.fill(); }
   }
-  // The keeper's house: a long low Breton house (a penty) of granite seen a little from its right: its front of ashlar in uneven courses, big
+  // The rise of the ground in front of a building (from xa to xb, the building's foot at yb, s its size): the mat of the headland's top
+  // drawn again over the foot, a little above the brow, so that the building stands back on the top instead of on its edge; its body in the
+  // mat's colours, darker down into the grass, hazed as the headland; clumps of heath and gorse along it.
+  function coteHeadBank(c, L, P, D, xa, xb, yb, s, seed) {
+    const w = L.w, day = D.W.day == null ? 1 : D.W.day, haze = D.W.haze || '#a9c3d4', hz = (col) => coteMixC(col, haze, 0.12), n = kitNoise(seed), m = (xb - xa) * 0.18;
+    const hd = (x) => L.head(Math.min(1, Math.max(0, x / w))), tp = (x) => coteSm(xa, xa + m, x) * coteSm(xb, xb - m, x);
+    const yt = (x) => Math.max(hd(x) - 0.5, yb - s * (0.025 + 0.02 * (0.5 + n(x / w * 60, 0.5))) * tp(x)), yg = (x) => Math.max(yt(x) + 0.3, yb + 1.2); // the foot hidden, never above the skyline
+    c.beginPath(); c.moveTo(xa, yg(xa)); for (let x = xa; x <= xb; x += 1.5) c.lineTo(x, yt(x)); for (let x = xb; x >= xa; x -= 1.5) c.lineTo(x, yg(x)); c.closePath();
+    c.fillStyle = hz(coteMixC(coteMixC(P.heath, P.grass, 0.55), P.rockS, 0.2)); c.fill(); // the ground under the clumps, in their shade
+    // the clumps, close set, the back row first, over the foot: each shaded under, lit on top
+    const R = mulberry(seed + 1), cols = [coteMixC(P.heath, P.grass, 0.55), P.heath, coteMixC(P.heath, P.heathP, 0.25), coteMixC(P.straw, P.grass, 0.4), coteMixC(P.heath, P.grass, 0.3)].map(hz), lt = hz(coteMixC(P.grassT, P.straw, 0.35)), dk = coteA(coteRGB(hz(coteMixC(P.heath, P.rockS, 0.5))), 0.5);
+    for (const [dy, k] of [[-0.065, 0.85], [-0.025, 1]]) for (let x = xa + m * 0.25; x < xb - m * 0.25; x += s * (0.03 + 0.04 * R())) {
+      const r = s * (0.035 + 0.05 * R()) * k * (0.5 + 0.5 * tp(x)), cy = yb + s * dy * (0.4 + 0.6 * tp(x)) + r * 0.15;
+      if (r < 0.5) continue;
+      c.fillStyle = dk; blob(c, coteBlobPts(x, cy + r * 0.35, r * 1.25, r * 0.6, R, 7, 0.9)); c.fill();
+      c.fillStyle = cols[(R() * cols.length) | 0]; blob(c, coteBlobPts(x, cy, r * 1.3, r, R, 8, 0.75)); c.fill();
+      c.fillStyle = coteA(coteRGB(lt), 0.32 * (0.4 + 0.6 * day)); blob(c, coteBlobPts(x - r * 0.15, cy - r * 0.45, r * 0.75, r * 0.4, R, 6, 0.9)); c.fill(); }
+  }
+  // The keeper's house: a long low Breton house (a penty) of granite seen a little from its left (drawn as from its right, mirrored): its front of ashlar in uneven courses, big
   // quoins, granite lintels and sills, two windows with their shutters and a plank door; its gable end, a small window under its peak; a steep
   // roof of slate in courses, its ridge, a stack on each gable with its pots. Lit on the sun's side; its windows lit by the keeper's lamp at
   // night (else dark glass with the sky in it). x, yb: the middle of its front at the ground; s: its size; kd: how direct the light is.
   function coteHouse(c, x, yb, s, P, D, dir, lit, lk, kd) {
+    c.save(); c.translate(x * 2, 0); c.scale(-1, 1); dir = -dir; // drawn mirrored: it stands right of where we look from, so we see its left gable
     const day = D.W.day == null ? 1 : D.W.day, skyH = D.W.sky[D.W.sky.length - 1][1], sg = dir < 0 ? -1 : 1, ad = Math.min(1, Math.abs(dir) * 1.3) * kd, R = mulberry(6101);
     const xL = x - s * 0.8, xR = x + s * 0.5, xG = x + s * 0.8, yE = yb - s * 0.7, xA = (xR + xG) / 2, yA = yE - s * 0.52, xB = xL + (xG - xR) / 2, pad = Math.max(0.5, s * 0.012);
     const night = 1 - (D.d == null ? 1 : D.d), stone = coteMixC(coteMixC(coteMixC(P.gran, P.head, 0.3), P.white, 0.1), P.rockS, 0.45 * night), lt = coteMixC(coteMixC(P.gran, P.white, 0.25 * day), P.head, 0.4 * night), sh = coteMixC(coteMixC(P.granS, P.head, 0.45), skyH, 0.12);
-    const fr = coteMixC(stone, ad * -sg > 0 ? lt : sh, Math.min(1, 0.15 + 0.35 * ad)), gb = coteMixC(stone, sg > 0 ? lt : sh, Math.min(1, 0.25 + 0.55 * ad + 0.2 * (1 - ad))); // the front and the gable as the sun turns
+    const fr = coteMixC(stone, sg > 0 ? lt : sh, Math.min(1, 0.1 + 0.3 * ad)), gb = coteMixC(stone, sg > 0 ? lt : sh, Math.min(1, 0.25 + 0.55 * ad + 0.2 * (1 - ad))); // the front and the gable as the sun turns (mirrored: sg > 0 is the sun on the left, behind us, lighting both; on the right it is beyond them, both in shade, the gable the more)
     const dkC = coteRGB(coteMixC(P.rockS, '#000000', 0.3)), mor = coteRGB(coteMixC(stone, P.white, 0.3)), blue = coteMixC(coteMixC(P.seaF, P.whiteS, 0.35), P.white, 0.1 * day), roof = P.roof;
     const poly = (pp) => { c.beginPath(); pp.forEach(([a, b], i) => (i ? c.lineTo(a, b) : c.moveTo(a, b))); c.closePath(); };
     // the walls: a coursed ashlar, each stone its own tone, the mortar pale between; darker at the foot, in the shade of the eaves
@@ -19430,7 +19921,7 @@ window.LISEUSE_SCENES = (() => {
     stack(xB, yA + s * 0.08, yA - s * 0.24, s * 0.15, false);
     // the gable end: its wall and its peak, a small window up there, the verge of the roof over it
     wall([[xR, yb], [xR, yE], [xA, yA], [xG, yE - s * 0.012], [xG, yb - s * 0.015]], gb, xR, xG, yE - s * 0.5, yb, 1);
-    { const wx = xA, wy = yE - s * 0.12, ww = s * 0.07; c.fillStyle = coteMixC(stone, P.white, 0.25); c.fillRect(wx - ww - pad, wy - ww * 1.2 - pad, ww * 2 + pad * 2, ww * 2.4 + pad * 2); c.fillStyle = lit ? `rgba(255,214,150,${(0.55 * lk).toFixed(3)})` : coteMixC(roof, skyH, 0.25); c.fillRect(wx - ww, wy - ww * 1.2, ww * 2, ww * 2.4); }
+    { const wx = xA, wy = yE - s * 0.13, ww = s * 0.05; c.fillStyle = coteMixC(stone, P.white, 0.25); c.fillRect(wx - ww - pad, wy - ww * 1.2 - pad, ww * 2 + pad * 2, ww * 2.4 + pad * 2); c.fillStyle = lit ? `rgba(255,214,150,${(0.55 * lk).toFixed(3)})` : coteMixC(roof, skyH, 0.25); c.fillRect(wx - ww, wy - ww * 1.2, ww * 2, ww * 2.4); }
     // the roof: its front slope of slate, darker at the eaves, lighter up to the ridge where the sky lies on it; its courses, the odd slate
     // paler, rusty lichen here and there; the ridge, the verge
     const ro = [[xL - s * 0.06, yE + s * 0.025], [xR + s * 0.04, yE + s * 0.025], [xA, yA - s * 0.02], [xB, yA - s * 0.02]];
@@ -19446,6 +19937,8 @@ window.LISEUSE_SCENES = (() => {
     c.lineCap = 'round'; c.strokeStyle = coteMixC(roof, P.white, 0.28 + 0.1 * day); c.lineWidth = Math.max(0.7, s * 0.03); c.beginPath(); c.moveTo(xB, yA - s * 0.02); c.lineTo(xA, yA - s * 0.02); c.stroke(); // the ridge
     c.strokeStyle = coteMixC(roof, P.rockS, 0.3); c.lineWidth = Math.max(0.8, s * 0.035); c.beginPath(); c.moveTo(xR + s * 0.04, yE + s * 0.025); c.lineTo(xA, yA - s * 0.02); c.lineTo(xG + s * 0.05, yE + s * 0.015); c.stroke(); // the verge over the gable
     c.beginPath(); c.moveTo(xL - s * 0.06, yE + s * 0.025); c.lineTo(xB, yA - s * 0.02); c.stroke(); // and over the far one
+    if (sg > 0 && ad > 0.05) { const wd = s * 0.16, l = s * (0.12 + 0.25 * (1 - kd * 0.5)); c.save(); poly(ro); c.clip(); // the near stack's shadow, thrown along the ridge and down the slope toward us
+      c.fillStyle = lin(c, xA, 0, xA - wd * 0.5 - l, 0, [[0, coteA(dkC, 0.42 * ad)], [1, coteA(dkC, 0.12 * ad)]]); poly([[xA + wd * 0.5, yA - s * 0.03], [xA - wd * 0.5, yA - s * 0.03], [xA - wd * 0.5 - l, yA + s * 0.07], [xA - wd * 0.5 - l * 0.8, yA + s * 0.15], [xA + wd * 0.3, yA + s * 0.1]]); c.fill(); c.restore(); }
     // the front: its wall; the eave's shade on it; the quoins at its corners
     wall([[xL, yb], [xL, yE], [xR, yE], [xR, yb]], fr, xL, xR, yE, yb, 2);
     c.fillStyle = lin(c, 0, yE, 0, yE + s * 0.1, [[0, coteA(dkC, 0.4)], [1, coteA(dkC, 0)]]); c.fillRect(xL, yE, xR - xL, s * 0.1);
@@ -19466,12 +19959,12 @@ window.LISEUSE_SCENES = (() => {
       c.fillRect(cx - ow / 2, cy - oh / 2, ow, fw); c.fillRect(cx - ow / 2, cy + oh / 2 - fw, ow, fw); c.fillRect(cx - ow / 2, cy - oh / 2, fw, oh); c.fillRect(cx + ow / 2 - fw, cy - oh / 2, fw, oh); c.fillRect(cx - fw / 2, cy - oh / 2, fw, oh); c.fillRect(cx - ow / 2, cy - oh / 6, ow, fw * 0.8); c.fillRect(cx - ow / 2, cy + oh / 6, ow, fw * 0.8);
       c.fillStyle = coteMixC(stone, P.white, 0.25 + 0.1 * day); c.fillRect(cx - ow / 2 - s * 0.045, cy + oh / 2, ow + s * 0.09, s * 0.035); c.fillStyle = coteA(dkC, 0.35); c.fillRect(cx - ow / 2 - s * 0.03, cy + oh / 2 + s * 0.035, ow + s * 0.06, pad * 1.5); // the sill, its shadow
     };
-    opening(x - s * 0.55, yb - s * 0.46, s * 0.18, s * 0.24, false);
-    opening(x + s * 0.18, yb - s * 0.46, s * 0.2, s * 0.25, false);
-    opening(x - s * 0.19, yb - s * 0.22, s * 0.16, s * 0.42, true);
-    if (lit) { light(c, x + s * 0.18, yb - s * 0.38, s * 0.3, '255,200,130', 0.22 * lk); light(c, x - s * 0.55, yb - s * 0.38, s * 0.26, '255,200,130', 0.16 * lk); } // its light on the sills and the shutters
+    opening(x - s * 0.55, yb - s * 0.43, s * 0.13, s * 0.19, false); // a window a metre wide, a door two high (s: about 9 m)
+    opening(x + s * 0.18, yb - s * 0.43, s * 0.14, s * 0.2, false);
+    opening(x - s * 0.19, yb - s * 0.175, s * 0.13, s * 0.33, true);
+    if (lit) { light(c, x + s * 0.18, yb - s * 0.37, s * 0.26, '255,200,130', 0.22 * lk); light(c, x - s * 0.55, yb - s * 0.37, s * 0.22, '255,200,130', 0.16 * lk); } // its light on the sills and the shutters
     stack(xA, yA + s * 0.06, yA - s * 0.25, s * 0.16, true); // the stack on the near gable
-    coteHeadTufts(c, xL - s * 0.12, xG + s * 0.1, yb, s, P, day, 6131);
+    c.restore();
   }
   // The lighthouse: a tapering tower of rendered stone, white with a red band, on a granite plinth with steps up to its door; small windows up
   // its stair, streaks of rain down its render; a corbelled gallery with its railing; the lantern on its red parapet, glazed between its bars,
@@ -19482,7 +19975,7 @@ window.LISEUSE_SCENES = (() => {
     const rig = kitRigFrom(D, { dir: sg * Math.max(0.3, ad * (0.4 + 0.6 * kd)), front: 0.45 }), pad = Math.max(0.5, H * 0.004);
     const white = coteMixC(P.white, P.whiteS, 0.25 * night), red = coteMixC(P.red, P.white, 0.05), dark = coteMixC(P.roof, P.rockS, 0.45), grey = coteMixC(coteMixC(P.gran, P.head, 0.35), P.white, 0.12);
     const cyl = (x0, x1, base, gloss = 0) => kitCylGrad(c, x0, x1, { base, wrap: 0.3, gloss }, rig, 13);
-    const bw = H * 0.125, tw = bw * 0.68, sH = H * 0.045, y0 = yb - sH, shH = H * 0.66, y1 = y0 - shH, hw = (y) => tw + (bw - tw) * Math.pow(Math.max(0, Math.min(1, (y - y1) / shH)), 1.3);
+    const bw = H * 0.105, tw = bw * 0.68, sH = H * 0.045, y0 = yb - sH, shH = H * 0.66, y1 = y0 - shH, hw = (y) => tw + (bw - tw) * Math.pow(Math.max(0, Math.min(1, (y - y1) / shH)), 1.3);
     const dkC = coteRGB(coteMixC(P.rockS, '#000000', 0.3));
     c.save(); c.translate(x + sg * bw * 0.2, yb); c.scale(1, 0.14); c.fillStyle = rad(c, 0, 0, bw * 2.4, [[0, coteA(dkC, 0.4)], [0.5, coteA(dkC, 0.15)], [1, coteA(dkC, 0)]]); c.fillRect(-bw * 2.5, -bw * 2.5, bw * 5, bw * 5); c.restore(); // its shadow on the ground
     // the plinth: a short drum of granite, its courses, its top lit; three steps up to the door
@@ -19503,13 +19996,16 @@ window.LISEUSE_SCENES = (() => {
     { const Rr = mulberry(6151); c.lineCap = 'butt'; for (let k = 0; k < 9; k++) { const xx = x + (Rr() * 2 - 1) * tw * 0.85, ya = y1 + shH * 0.02 * Rr(), l = shH * (0.08 + 0.25 * Rr()); c.strokeStyle = lin(c, 0, ya, 0, ya + l, [[0, coteA(dkC, 0.09 + 0.06 * Rr())], [1, coteA(dkC, 0)]]); c.lineWidth = Math.max(0.5, bw * (0.04 + 0.06 * Rr())); c.beginPath(); c.moveTo(xx, ya); c.lineTo(xx + (Rr() - 0.5) * 0.6, ya + l); c.stroke(); }
       c.fillStyle = lin(c, 0, y0 - shH * 0.18, 0, y0, [[0, coteA(dkC, 0)], [1, coteA(dkC, 0.22)]]); c.fillRect(x - bw - 1, y0 - shH * 0.18, bw * 2 + 2, shH * 0.18 + 1); }
     // the stair's windows, staggered up the front: a stone surround, dark glass (one lit at night), its sill; the door at the foot, arched
-    for (const [f, ox] of [[0.16, 0.12], [0.52, -0.1], [0.72, 0.14]]) { const yy = y1 + shH * f, ww = bw * 0.13, wh = bw * 0.3, xx = x + ox * hw(yy);
+    for (const [f, ox] of [[0.16, 0.12], [0.52, -0.1], [0.72, 0.14]]) { const yy = y1 + shH * f, ww = bw * 0.12, wh = bw * 0.24, xx = x + ox * hw(yy);
       c.fillStyle = coteMixC(grey, P.white, 0.25); c.fillRect(xx - ww - pad, yy - wh - pad * 1.5, ww * 2 + pad * 2, wh * 2 + pad * 3);
       c.fillStyle = lit && f > 0.6 ? `rgba(255,206,140,${(0.7 * lk).toFixed(3)})` : lin(c, 0, yy - wh, 0, yy + wh, [[0, coteMixC(dark, skyH, 0.35)], [1, dark]]); c.fillRect(xx - ww, yy - wh, ww * 2, wh * 2);
       c.fillStyle = coteA(dkC, 0.25); c.fillRect(xx - ww, yy + wh + pad * 1.5, ww * 2, shH * 0.04); }
     { const dw = bw * 0.24, dh = H * 0.075, dx = x - bw * 0.1, dy = y0; c.fillStyle = coteMixC(grey, P.white, 0.2 + 0.1 * day); c.beginPath(); c.moveTo(dx - dw - pad * 2, dy); c.lineTo(dx - dw - pad * 2, dy - dh); c.quadraticCurveTo(dx, dy - dh - dw * 1.3, dx + dw + pad * 2, dy - dh); c.lineTo(dx + dw + pad * 2, dy); c.closePath(); c.fill();
       c.fillStyle = lin(c, dx - dw, 0, dx + dw, 0, [[0, coteMixC(coteMixC(P.seaF, P.whiteS, 0.4), P.white, 0.05)], [1, coteMixC(P.seaF, P.rockS, 0.4)]]); c.beginPath(); c.moveTo(dx - dw, dy); c.lineTo(dx - dw, dy - dh); c.quadraticCurveTo(dx, dy - dh - dw * 1.05, dx + dw, dy - dh); c.lineTo(dx + dw, dy); c.closePath(); c.fill();
       c.fillStyle = coteA(dkC, 0.3); c.fillRect(dx - pad * 0.5, dy - dh, pad, dh); }
+    // the light the rock and the sea throw back up into its shaded side: a soft warm rim along that edge, so its darkest band lies inside it
+    { const bc = coteRGB(coteMixC(coteMixC(P.gran, P.white, 0.2), skyH, 0.25)), kb = (0.06 + 0.16 * Math.min(1, kd)) * (0.35 + 0.65 * day);
+      for (let k = 0; k < NS; k++) { const ya = y1 + shH * k / NS, wm = hw(ya + shH / NS / 2), xe = x - sg * wm; c.fillStyle = lin(c, xe, 0, xe + sg * wm * 0.7, 0, [[0, coteA(bc, kb)], [0.35, coteA(bc, kb * 0.35)], [1, coteA(bc, 0)]]); c.fillRect(x - wm - 1, ya, wm * 2 + 2, shH / NS + 0.6); } }
     // the shade under the gallery's overhang
     c.fillStyle = lin(c, 0, y1, 0, y1 + shH * 0.06, [[0, coteA(dkC, 0.35)], [1, coteA(dkC, 0)]]); c.fillRect(x - bw, y1, bw * 2, shH * 0.06);
     c.restore();
@@ -19543,23 +20039,22 @@ window.LISEUSE_SCENES = (() => {
       const vr = H * 0.014, vy = ey - dmH - vr * 0.8; c.fillStyle = rad(c, x - sg * vr * 0.35, vy - vr * 0.35, vr * 1.2, [[0, coteMixC(dark, P.white, 0.35 * day + 0.1)], [1, dark]]); c.beginPath(); c.arc(x, vy, vr, 0, TAU); c.fill();
       c.strokeStyle = dark; c.lineWidth = Math.max(0.5, H * 0.004); c.beginPath(); c.moveTo(x, vy - vr); c.lineTo(x, vy - vr - H * 0.04); c.moveTo(x - H * 0.012, vy - vr - H * 0.028); c.lineTo(x + H * 0.014, vy - vr - H * 0.028); c.stroke();
       if (lit) light(c, x, ly + gH * 0.5, lW * 3.2, '255,214,150', 0.3 * lk); }
-    coteHeadTufts(c, x - bw * 1.7, x + bw * 1.7, yb, bw * 4.5, P, day, 6143);
     return { x, y: ly + gH * 0.5, s: lW * 2, top: ly - H * 0.05 };
   }
   // Where the lighthouse (on the knoll) and the keeper's house (on the terrace) stand for a size, each on its level ground, sized in the
   // headland's unit of height (so a tall window does not stretch them).
-  const coteHeadSite = (L) => { const hu = Math.min(L.h, L.w * 0.75), tht = hu * 0.155; return { tx: L.w * 0.93, tb: L.head(0.93) + 0.5, tht, hx: L.w * 0.865, hbase: L.head(0.865) + 0.5, hs: tht * 0.29 }; };
+  const coteHeadSite = (L) => { const hu = Math.min(L.h, L.w * 0.75), tht = hu * 0.155; return { tx: L.w * 0.93, tb: L.head(0.93) + tht * 0.038, tht, hx: L.w * 0.865, hbase: L.head(0.865) + tht * 0.025, hs: tht * 0.25 }; }; // each set back from the brow, its foot behind the rise of the ground in front
   // The two buildings' outline as holes in a frame (for an even-odd clip): fx draws the sky's things (stars, the discs, the clouds) round them.
   // It follows coteLight's and coteHouse's measures.
   function coteHeadBldg(L) {
     const S = coteHeadSite(L), p = new Path2D(), poly = (pp) => { pp.forEach(([a, b], i) => (i ? p.lineTo(a, b) : p.moveTo(a, b))); p.closePath(); };
     p.rect(-10, -10, L.w + 20, L.h + 20);
-    { const x = S.tx, yb = S.tb, H = S.tht, bw = H * 0.125, tw = bw * 0.68, pw = bw * 1.3, y0 = yb - H * 0.045, y1 = y0 - H * 0.66, gy = y1 - H * 0.035, gW = tw * 1.42 * 1.03, py = gy - H * 0.052, lW = tw * 0.76 * 1.14, ly = py - H * 0.08, dm = H * 0.05, vt = ly - dm - H * 0.03;
+    { const x = S.tx, yb = S.tb, H = S.tht, bw = H * 0.105, tw = bw * 0.68, pw = bw * 1.3, y0 = yb - H * 0.045, y1 = y0 - H * 0.66, gy = y1 - H * 0.035, gW = tw * 1.42 * 1.03, py = gy - H * 0.052, lW = tw * 0.76 * 1.14, ly = py - H * 0.08, dm = H * 0.05, vt = ly - dm - H * 0.03;
       poly([[x - pw, yb + 2], [x - pw, y0], [x - bw, y0], [x - tw, y1], [x - gW, gy], [x - gW, py], [x - lW, py], [x - lW, ly], [x - lW * 0.6, ly - dm * 0.75], [x - H * 0.016, vt], [x + H * 0.016, vt], [x + lW * 0.6, ly - dm * 0.75], [x + lW, ly], [x + lW, py], [x + gW, py], [x + gW, gy], [x + tw, y1], [x + bw, y0], [x + pw, y0], [x + pw, yb + 2]]); }
     { const x = S.hx, yb = S.hbase, s = S.hs, xL = x - s * 0.8, xR = x + s * 0.5, xG = x + s * 0.8, yE = yb - s * 0.7, xA = (xR + xG) / 2, yA = yE - s * 0.52, xB = xL + (xG - xR) / 2;
       const eL = [xL - s * 0.07, yE + s * 0.03], rB = [xB, yA - s * 0.03], rA = [xA, yA - s * 0.03], eR = [xG + s * 0.06, yE + s * 0.02], on = (a, b, xx) => a[1] + (b[1] - a[1]) * (xx - a[0]) / (b[0] - a[0] || 1);
       const wB = s * 0.15, tB = yA - s * 0.24 - wB * 0.45, wA = s * 0.16, tA = yA - s * 0.25 - wA * 0.45, bL = xB - wB * 0.6, bR = xB + wB * 0.6, aL = xA - wA * 0.6, aR = xA + wA * 0.6 + wA * 0.38;
-      poly([[eL[0], yb + 2], eL, [bL, on(eL, rB, bL)], [bL, tB], [bR, tB], [bR, rB[1]], [aL, rA[1]], [aL, tA], [aR, tA], [aR, on(rA, eR, aR)], eR, [eR[0], yb + 2]]); }
+      poly([[eL[0], yb + 2], eL, [bL, on(eL, rB, bL)], [bL, tB], [bR, tB], [bR, rB[1]], [aL, rA[1]], [aL, tA], [aR, tA], [aR, on(rA, eR, aR)], eR, [eR[0], yb + 2]].map(([a, b]) => [2 * x - a, b])); } // mirrored, as coteHouse draws it
     return p;
   }
   // ---- coteSea21: the far coast, the island, the sky's outline ----
@@ -19807,7 +20302,7 @@ window.LISEUSE_SCENES = (() => {
   // the mat on top (grass, dry grass, heather and gorse in cushions, flowering; the shade in it and the light on it) spilling over its edge,
   // down the cracks and onto the ledges. coteHeadLay lays one in a colour; the light's side is chosen when laying, so one bake serves all day.
   const COTE_HEAD = new Map();
-  const COTE_HEAD_ROCKM = ['dark', 'deep', 'top', 'sideL', 'sideR', 'warm', 'cool', 'stain', 'lichen', 'ochre', 'black', 'barn', 'wrack'], COTE_HEAD_MATM = ['grass', 'straw', 'heath', 'gorse', 'heathF', 'gorseF', 'mShade', 'mLit'];
+  const COTE_HEAD_ROCKM = ['dark', 'deep', 'top', 'sideL', 'sideR', 'warm', 'cool', 'stain', 'lichen', 'ochre', 'black', 'barn', 'wrack', 'bL', 'bR', 'brow', 'back', 'front', 'rim'], COTE_HEAD_MATM = ['grass', 'straw', 'heath', 'gorse', 'heathF', 'gorseF', 'mShade', 'mLit'];
   function coteHeadMasks(L) {
     const dn = Math.min(window.devicePixelRatio || 1, 1.5), key = L.w + 'x' + L.h + '@' + dn, hit = COTE_HEAD.get(key);
     if (hit) return hit;
@@ -19834,7 +20329,7 @@ window.LISEUSE_SCENES = (() => {
     const base = (x) => foot(x) - hu * coteHeadToe(x / w, hu / w) * (0.3 + 0.7 * coteSm(0.66, 0.8, x / w)); // the waterline under the face, without the blocks in front of it
     const Y = (x, v) => { const a = Math.min(topS(x), top(x)) - 2; return a + (base(x) + 1.5 - a) * v; };
     const vOf = (x, y) => { const a = Math.min(topS(x), top(x)) - 2; return (y - a) / Math.max(1, base(x) + 1.5 - a); };
-    const CUT = ['deep', 'dark', 'top', 'sideL', 'sideR', 'warm', 'cool', 'stain', 'lichen'], CUTF = [...CUT, 'black', 'barn', 'ochre'];
+    const CUT = ['deep', 'dark', 'top', 'sideL', 'sideR', 'warm', 'cool', 'stain', 'lichen'], CUTF = [...CUT, 'black', 'barn', 'ochre', 'bL', 'bR', 'brow'];
     const smooth = (pts) => { const p = new Path2D(), n = pts.length; p.moveTo((pts[n - 1][0] + pts[0][0]) / 2, (pts[n - 1][1] + pts[0][1]) / 2); for (let i = 0; i < n; i++) { const a = pts[i], b = pts[(i + 1) % n]; p.quadraticCurveTo(a[0], a[1], (a[0] + b[0]) / 2, (a[1] + b[1]) / 2); } p.closePath(); return p; };
     const ell = (k, p, x, y, rx, ry, st) => { const g = G[k]; g.save(); g.clip(p); g.translate(x, y); g.scale(rx / ry, 1); g.fillStyle = rad(g, 0, 0, ry, st.map(([q, a]) => [q, wa(a)])); g.fillRect(-ry, -ry, ry * 2, ry * 2); g.restore(); };
     // a mass's outline: superellipse (squarer as p grows), lumpy by a noise round it, flat where a plane cuts it; its underside a little flatter
@@ -19855,17 +20350,19 @@ window.LISEUSE_SCENES = (() => {
       return [x, rw]; };
     const planes = () => { const o = []; for (let j = 0, n = R() < 0.45 ? 0 : R() < 0.65 ? 1 : 2; j < n; j++) o.push([R() * TAU, 0.72 + 0.2 * R()]); return o; }; // where joints cut it flat
     const masses = [], core = (x, y) => masses.some((m) => ((x - m.cx) / (m.rw * 0.8)) ** 2 + ((y - m.cy) / (m.rh * 0.8)) ** 2 < 1);
-    const add = (cx, cy, rw, rh, k, e) => { let r; [cx, r] = fit(cx, cy, rw); if (r < 1.6 * kS || rh < 1.2) return;
-      masses.push({ cx, cy, rw: r, rh: Math.min(rh, r * 1.2), p: 1.9 + 1.7 * R() * R(), tilt: (R() - 0.5) * 0.3, cuts: planes(), ph: R() * 60, k, e, v: vOf(cx, cy), rd: k === 'body' ? 0.25 + 0.75 * R() : 0.6 + 0.4 * R() }); };
+    const add = (cx, cy, rw, rh, k, e, o) => { let r; [cx, r] = fit(cx, cy, rw); if (r < 1.6 * kS || rh < 1.2) return;
+      masses.push({ cx, cy, rw: r, rh: Math.min(rh, r * 1.2), p: o ? o.p : 1.9 + 1.7 * R() * R(), tilt: o ? o.tilt : (R() - 0.5) * 0.5, cuts: planes(), ph: R() * 60, k, e, v: vOf(cx, cy), rd: k === 'body' ? 0.25 + 0.75 * R() : 0.6 + 0.4 * R() }); };
     // the skyline: the masses whose tops make it (cut by it), and the tors standing on it, one boulder or one with a smaller one on it
-    for (let x = x0 - hu * 0.01; x < w + hu * 0.03;) { const rw = hu * (0.02 + 0.028 * R()), xc = x + rw * 0.7, rh = Math.max(2, Math.min(rw * (0.55 + 0.35 * R()), (foot(xc) - top(xc)) * (0.3 + 0.25 * R()))); add(xc, top(xc) + rh * 0.8, rw, rh, 'crest', 1); x += rw * (1.1 + 0.8 * R()); }
+    const fz = (x) => 0.5 + 0.5 * coteSm(0.655, 0.86, x / w); // things get smaller toward the tip, which runs away from us out to sea
+    for (let x = x0 - hu * 0.01; x < w + hu * 0.03;) { const rw = hu * (0.015 + 0.021 * R()) * fz(x), xc = x + rw * 0.7, rh = Math.max(2, Math.min(rw * (0.55 + 0.35 * R()), (foot(xc) - top(xc)) * (0.3 + 0.25 * R()))); add(xc, top(xc) + rh * 0.8, rw, rh, 'crest', 1); x += rw * (1.1 + 0.8 * R()); }
     for (const [tc, thw, tht] of COTE_HEAD_TORS) { const xc = tc * w, hw = thw * hu, ht = tht * hu, yt = top(xc), rh = ht * 0.62 + hu * 0.004;
       add(xc + (R() - 0.5) * hw * 0.2, yt + rh * 0.92, hw * 1.08, rh, 'tor', 1);
       if (ht > hu * 0.006) add(xc + (R() - 0.5) * hw * 0.35, yt + ht * 0.36, hw * (0.5 + 0.18 * R()), ht * 0.42, 'tor', 1); }
     // the body: the big ones first, then smaller and smaller into the gaps
-    for (let i = 0, N = 640; i < N; i++) { const f = i / N, x = x0 + R() * (w - x0), ft = foot(x) - top(x); if (ft < 3) continue;
-      const v = 0.06 + 0.94 * R(), y = Y(x, v), rw = hu * (0.011 + 0.042 * (1 - f) ** 1.6) * (0.65 + 0.7 * R()), rh = Math.min(rw * (0.48 + 0.45 * R()), ft * 0.42);
-      if (!core(x, y)) add(x, y, rw, rh, 'body', 0.35 + 0.65 * (1 - Math.max(0, v))); }
+    for (let i = 0, N = 900; i < N; i++) { const f = i / N, x = x0 + R() * (w - x0), ft = foot(x) - top(x); if (ft < 3) continue;
+      const sl = i < N * 0.09 && R() < 0.6; // the first few big ones: some long slabs, tilted, squarer (joints cut them flat)
+      const v = 0.06 + 0.94 * R(), y = Y(x, v), rw = hu * (0.009 + 0.031 * (1 - f) ** 1.6) * (sl ? 1.5 : 0.45 + 1.15 * R() * R()) * fz(x), rh = sl ? rw * (0.26 + 0.16 * R()) : Math.min(rw * (0.48 + 0.45 * R()), ft * 0.42);
+      if (!core(x, y)) add(x, y, rw, rh, 'body', 0.35 + 0.65 * (1 - Math.max(0, v)), sl ? { p: 3.2 + 1.8 * R(), tilt: (R() < 0.5 ? -1 : 1) * (0.2 + 0.3 * R()) } : null); }
     // the blocks tumbled at its foot (COTE_HEAD_FOOT, which hfoot follows), the water half way up them; a few smaller ones in front
     const feet = [];
     const block = (cx, yb, hw, bh, sub) => { const cuts = planes(); if (cuts.length < 1) cuts.push([R() * TAU, 0.7 + 0.2 * R()]); feet.push({ cx, cy: yb + bh * (1.37 * sub - 0.65), rw: hw, rh: bh * 0.72, p: 1.6 + 1 * R(), tilt: (R() - 0.5) * 0.8, cuts, ph: R() * 60, k: 'foot', e: 0.4, v: 1, rd: 0.35 + 0.5 * R(), yw: yb }); }; // a block broken off the face, rounded by the sea
@@ -19901,6 +20398,9 @@ window.LISEUSE_SCENES = (() => {
         g.save(); g.clip(p); g.lineCap = 'round';
         for (const [lw, a, lf] of [[1.4, 0.3, 0.6], [0.6, 0.7, 1]]) { g.strokeStyle = linG('deep', 0, fy, 0, fy + l * lf, [[0, a], [0.55, a * 0.5], [1, 0]]); g.lineWidth = lw * kS; g.beginPath(); g.moveTo(fx, fy - 2); g.quadraticCurveTo(fx + bx, fy + l * lf * 0.5, fx + bx * 0.6, fy + l * lf); g.stroke(); }
         g.restore(); }
+      // a slab's bedding: a joint or two along it at its slant (the diaclases run across the face, not only down it), a lit lip under each
+      if (m.p > 3.1 && m.k === 'body') { const ca = Math.cos(m.tilt), sa = Math.sin(m.tilt); for (let j = 0, nj = R() < 0.65 ? 1 : 0; j < nj; j++) { const q = (R() - 0.5) * 0.9 * rh, ex = rw * 1.3, a0 = (R() - 0.5) * 0.15;
+        for (const [k, dy, lw, a] of [['deep', 0, 0.6 + 0.5 * R(), 0.5], ['top', 1 * kS, 0.6, 0.35]]) { const g = G[k]; g.save(); g.clip(p); g.strokeStyle = wa(a); g.lineWidth = lw * kS; g.beginPath(); g.moveTo(cx - ca * ex - sa * q, cy - (sa + a0) * ex + ca * q + dy); g.lineTo(cx + ca * ex - sa * q, cy + (sa + a0) * ex + ca * q + dy); g.stroke(); g.restore(); } } }
       // lichen on the high ones: grey-green rosettes in a cluster or two on its top
       if (m.k !== 'foot' && m.v < 0.7 && R() < 0.65 * e) { const lp = new Path2D(); for (let j = 0, nc = 1 + ((R() * 2) | 0); j < nc; j++) dots(lp, cx + (R() - 0.5) * rw * 1.1, yt + rh * (0.2 + 0.35 * R()), rw * 0.45, rh * 0.3, 3 + ((R() * 7) | 0), 0.35, 1.4); G.lichen.fillStyle = wa(R() < 0.6 ? 0.85 : 0.5); G.lichen.fill(lp); }
       if (m.k === 'body' && m.v > 0.55 && R() < 0.14) dots(ochre, cx, yt + rh * 0.3, rw * 0.8, rh * 0.3, 3 + ((R() * 4) | 0), 0.3, 0.8);
@@ -19914,6 +20414,18 @@ window.LISEUSE_SCENES = (() => {
         const fe = Math.min(1, (cl.v0 > 0 ? (v - va) / 0.15 : 1), (cl.v1 < 1 ? (vb - v) / 0.2 : 1));
         G.dark.fillStyle = linG('dark', xm - gw, 0, xm + gw, 0, [[0, 0], [0.5, 0.32 * fe], [1, 0]]); G.dark.beginPath(); G.dark.moveTo(xa - gw, ya); G.dark.lineTo(xa + gw, ya); G.dark.lineTo(xb + gw, yb); G.dark.lineTo(xb - gw, yb); G.dark.fill();
         G.deep.strokeStyle = wa(0.9 * fe); G.deep.lineCap = 'round'; G.deep.lineWidth = Math.max(0.5, cl.g * (1.7 - 1.1 * v)); G.deep.beginPath(); G.deep.moveTo(xa, ya); G.deep.lineTo(xb, yb); G.deep.stroke(); } }
+    // the two planes of rock: the back one, higher, under the house and the tower, and the front one, lower, at the water, hiding the back's
+    // foot; its top edge in steps and slants (the ends of slabs), lit along its brink. back, front: their regions; rim: that brink.
+    { const vf = (x) => { const t = x / w, saw = ((t * 6.5 + 0.35 * nA(t * 3, 1.1)) % 1 + 1) % 1; return Math.max(0.3, Math.min(0.72, 0.5 + 0.09 * nA(t * 9, 7.7) + 0.05 * nB(t * 23, 3.3) + 0.09 * (saw - 0.5) - 0.12 * coteSm(0.74, 0.66, t))); };
+      const pts = []; for (let x = x0 - 2; x <= w + 2; x += 1.5) pts.push([x, Y(x, vf(x))]);
+      const pB = new Path2D(), pF = new Path2D(), pR = new Path2D();
+      pB.moveTo(x0 - 2, yT - 10); pB.lineTo(w + 2, yT - 10); for (let i = pts.length - 1; i >= 0; i--) pB.lineTo(pts[i][0], pts[i][1]); pB.closePath();
+      pF.moveTo(x0 - 2, yF + 10); pF.lineTo(w + 2, yF + 10); for (let i = pts.length - 1; i >= 0; i--) pF.lineTo(pts[i][0], pts[i][1]); pF.closePath();
+      pts.forEach(([x, y], i) => (i ? pR.lineTo(x, y) : pR.moveTo(x, y)));
+      G.back.fillStyle = '#fff'; G.back.fill(pB); G.front.fillStyle = '#fff'; G.front.fill(pF);
+      G.front.save(); G.front.clip(pF); G.front.globalCompositeOperation = 'destination-out'; G.front.lineJoin = 'round'; G.front.strokeStyle = 'rgba(0,0,0,0.6)'; G.front.lineWidth = 7 * kS; G.front.stroke(pR); G.front.restore(); // lighter just under its brink, darker down to the water
+      G.rim.lineJoin = 'round'; G.rim.strokeStyle = wa(0.35); G.rim.lineWidth = 3 * kS; G.rim.save(); G.rim.translate(0, 1.2 * kS); G.rim.stroke(pR); G.rim.restore(); G.rim.strokeStyle = wa(0.9); G.rim.lineWidth = 1.1 * kS; G.rim.stroke(pR);
+      G.deep.lineJoin = 'round'; G.deep.strokeStyle = wa(0.5); G.deep.lineWidth = 0.8 * kS; G.deep.save(); G.deep.translate(0, -0.9 * kS); G.deep.stroke(pR); G.deep.restore(); } // the seam where it stands against the back
     // dark streaks down the face where the rain runs from the mat and the clefts
     { const g = G.dark; g.lineCap = 'round'; for (let j = 0; j < 50; j++) { const cl = j < 14 && clefts.length ? clefts[(R() * clefts.length) | 0] : null, x = cl ? clX(cl, 0.1) + (R() - 0.5) * 6 * kS : x0 + R() * (w - x0), ya = Y(x, R() * R() * 0.6), l = (foot(x) - ya) * (0.15 + 0.5 * R()); if (l < 3) continue;
       g.strokeStyle = linG('dark', 0, ya, 0, ya + l, [[0, 0.18 + 0.2 * R()], [1, 0]]); g.lineWidth = (0.6 + 1.6 * R()) * kS; g.beginPath(); g.moveTo(x, ya); g.quadraticCurveTo(x + (R() - 0.5) * 2, ya + l * 0.5, x + (R() - 0.5) * 2, ya + l); g.stroke(); } }
@@ -19928,6 +20440,19 @@ window.LISEUSE_SCENES = (() => {
     { const g = G.wrack; g.lineCap = 'round'; for (const [lw, a] of [[1.5, 0.9], [0.8, 0.7]]) { g.strokeStyle = wa(a); g.lineWidth = lw * kS; g.beginPath(); for (let x = x0 + R() * 2; x <= w; x += (0.9 + 1.6 * R()) * kS) { const yb = foot(x) + 1, l = (1 + 3 * R() * R()) * kS * (0.5 + 0.5 * coteSm(0.66, 0.8, x / w)); g.moveTo(x, yb); g.lineTo(x + (R() - 0.5) * 1.2, yb - l); } g.stroke(); } }
     for (let j = 0; j < 90; j++) { const x = x0 + R() * (w - x0), f = coteSm(0.66, 0.8, x / w); if (R() > 0.3 + 0.7 * f) continue; dots(ochre, x, base(x) - band(x) - hu * (0.003 + 0.016 * R()), hu * 0.012, hu * 0.004, 2 + ((R() * 6) | 0), 0.3, 0.9); }
     G.ochre.fillStyle = wa(0.9); G.ochre.fill(ochre);
+    // The headland's big forms, over its masses: it is not a wall but buttresses of rock between the clefts, each rounded like a column, so
+    // the rock either side of a cleft turns away (bL: faces turned to the left, bR: to the right); the tip of the promontory, its end turned
+    // to the left, out to sea; the brow along the top where the face rounds over under the mat (brow: the sky's light on it, the shade under it
+    // is the dark mask's). Each a wide soft band, so that the light the painting lays by the sun's side models the whole mass.
+    { const full = clefts.filter((cl) => cl.v1 - Math.max(0, cl.v0) > 0.3), xs = [x0 - w * 0.02, ...full.map((cl) => cl.x), w + w * 0.02];
+      const bandQ = (k, cl, sd, wd) => { const va = Math.max(0, cl.v0), vb = Math.min(1, cl.v1), N = 14, g = G[k]; // a band beside a cleft, on its side sd, wd wide
+        for (let i = 0; i < N; i++) { const v = va + (vb - va) * i / N, v2 = va + (vb - va) * (i + 1) / N, xa = clX(cl, v), xb = clX(cl, v2), ya = Y(xa, v) - 0.5, yb = Y(xb, v2) + 0.5, xm = (xa + xb) / 2;
+          const fe = Math.min(1, cl.v0 > 0 ? (v - va) / 0.25 : 1, cl.v1 < 1 ? (vb - v) / 0.3 : 1);
+          g.fillStyle = linG(k, xm, 0, xm + sd * wd, 0, [[0, 0.95 * fe], [0.4, 0.82 * fe], [0.62, 0.22 * fe], [1, 0]]); g.beginPath(); g.moveTo(xa, ya); g.lineTo(xa + sd * wd, ya); g.lineTo(xb + sd * wd, yb); g.lineTo(xb, yb); g.closePath(); g.fill(); } };
+      full.forEach((cl, i) => { const gl = cl.x - xs[i], gr = xs[i + 2] - cl.x; bandQ('bR', cl, -1, Math.min(hu * 0.07, gl * 0.45)); bandQ('bL', cl, 1, Math.min(hu * 0.07, gr * 0.45)); }); // left of a cleft the rock turns right into it, right of it, left
+      { const xe = w * 0.745, g = G.bL; g.fillStyle = linG('bL', x0, 0, xe, 0, [[0, 0.9], [0.55, 0.78], [0.8, 0.5], [0.9, 0.12], [1, 0]]); g.fillRect(x0 - 4, yT - 4, xe - x0 + 4, yF - yT + 8); } // the tip's end, out to sea
+      for (let x = x0; x < w; x += 2) { const sl = (topS(x + 5) - topS(x - 5)) / 10, k = coteSm(0.08, 0.5, Math.abs(sl)); if (k < 0.02) continue; // where the skyline climbs or drops (the knoll, the step to the terrace): the rock under it turned that way
+        const g = G[sl < 0 ? 'bL' : 'bR'], y = top(x), d = hu * (0.03 + 0.04 * k); g.fillStyle = linG(sl < 0 ? 'bL' : 'bR', 0, y, 0, y + d, [[0, 0.75 * k], [0.5, 0.35 * k], [1, 0]]); g.fillRect(x - 1, y - 1, 2.2, d + 1); } }
     for (const m of feet) paint(m);
     // its grain all over: dark mica and pale feldspar, a speck or two px across (into the shade's and the lichen's masks: two fewer to lay)
     for (const [k, n, a] of [['dark', 0.11, 0.31], ['lichen', 0.08, 0.36]]) { const p = new Path2D(); for (let j = 0, m = (w - x0) * (yF - yT) * n; j < m; j++) { const x = x0 + R() * (w - x0), y = yT + R() * (yF - yT), r = (0.35 + 0.5 * R() * R()) * kS; p.rect(x, y, r * (1 + R()), r); } G[k].fillStyle = wa(a); G[k].fill(p); }
@@ -19953,6 +20478,8 @@ window.LISEUSE_SCENES = (() => {
     { const g = G.grass, gl = G.mLit; g.lineCap = gl.lineCap = 'round'; g.strokeStyle = wa(0.9); gl.strokeStyle = wa(0.5); g.lineWidth = gl.lineWidth = 0.55 * kS; g.beginPath(); gl.beginPath(); // blades on the skyline, leaning in the wind
       for (let x = x0; x <= w; x += 1.1 * kS) { if (md(x) < 0.8 * kS || R() < 0.45) continue; const y = top(x) + 0.6, l = (1 + 2.4 * R()) * kS, lx = (R() - 0.3) * l * 0.5; g.moveTo(x, y); g.quadraticCurveTo(x + lx * 0.3, y - l * 0.6, x + lx, y - l); if (R() < 0.4) { gl.moveTo(x, y); gl.quadraticCurveTo(x + lx * 0.3, y - l * 0.6, x + lx, y - l); } }
       g.stroke(); gl.stroke(); }
+    // the brow (see the big forms above), under the mat's edge
+    { const g = G.brow; g.lineJoin = 'round'; for (const [lw, a, dy] of [[hu * 0.022, 0.35, 0.011], [hu * 0.011, 0.5, 0.0065]]) { g.strokeStyle = wa(a); g.lineWidth = lw; g.beginPath(); for (let x = x0; x <= w + 2; x += 3) { const y = top(x) + hu * dy + md(x) * 0.6; x === x0 ? g.moveTo(x, y) : g.lineTo(x, y); } g.stroke(); } }
     // the tors stand clear of the mat, with a little heath at their feet
     for (const p of tors) for (const k of COTE_HEAD_MATM) { G[k].globalCompositeOperation = 'destination-out'; G[k].fillStyle = '#000'; G[k].fill(p); G[k].globalCompositeOperation = 'source-over'; }
     for (const [tc, thw] of COTE_HEAD_TORS) { const xc = tc * w, hw = thw * hu, yg = Math.max(top(xc - hw * 1.15), top(xc + hw * 1.15)); if (md(xc) < 0.8 * kS) continue; const p = new Path2D(); for (let j = 0, m = 3 + ((R() * 4) | 0); j < m; j++) { const x = xc + (R() * 2 - 1) * hw * 1.1, r = (0.8 + 1.1 * R()) * kS; p.moveTo(x + r, yg + r * 0.2); p.ellipse(x, yg + r * 0.2, r * 1.1, r * 0.75, 0, 0, TAU); } G.heath.fillStyle = wa(0.95); G.heath.fill(p); }
@@ -19978,17 +20505,21 @@ window.LISEUSE_SCENES = (() => {
     { const st = []; for (let i = 0; i <= 8; i++) { const q = i / 8; st.push([q, coteMixC(coteMixC(gran, lt, 0.2 * (1 - q)), sh, 0.45 * q * q)]); } c.fillStyle = lin(c, 0, yT, 0, yF, st); c.fill(L.headPath); }
     c.save(); c.clip(L.headPath); kitTex(c, 'stone', x0, yT, w - x0, yF - yT, 0.2, 0.5); c.restore();
     if (low > 0.01) { c.fillStyle = coteA(coteRGB(sh), 0.46 * low); c.fill(L.headPath); } // the sun low beyond it: the face toward us in its own shade
-    const lay = (k, col, a) => coteHeadLay(c, HM, k, col, a), wL = coteSm(0.05, 0.9, -dir) * kd, wR = coteSm(0.05, 0.9, dir) * kd, side = (k, v) => lay(k, v > 0 ? ltS : sh, Math.abs(v));
-    lay('dark', sh, 0.78); side('sideL', 0.85 * wL - 0.5 * wR - 0.24); side('sideR', 0.85 * wR - 0.5 * wL - 0.24);
+    { const a = 0.22 * Math.min(1, kd) * (1 - 0.6 * low) * coteSm(0.1, 0.5, Math.abs(dir)); if (a > 0.01) { c.fillStyle = coteA(coteRGB(coteMixC(sh, D.W.sky[0][1], 0.3)), a); c.fill(L.headPath); } } // the sun always stands beyond it, to a side: the face toward us gets it only glancing, the planes turned to the sun (bL, bR) stand out of it
+    const shC = coteMixC(sh, D.W.sky[0][1], 0.2 + 0.1 * kd); // the shade lit by the sky overhead: cooler, the more so in sunshine
+    const lay = (k, col, a) => coteHeadLay(c, HM, k, col, a), wL = coteSm(0.05, 0.9, -dir) * kd, wR = coteSm(0.05, 0.9, dir) * kd, side = (k, v) => lay(k, v > 0 ? ltS : shC, Math.abs(v));
+    lay('dark', sh, 0.72); side('sideL', 0.7 * wL - 0.4 * wR - 0.2); side('sideR', 0.7 * wR - 0.4 * wL - 0.2); // each block's own modelling, a little quieter than the whole's:
+    side('bL', 1.0 * wL - 0.85 * wR - 0.34); side('bR', 1.0 * wR - 0.85 * wL - 0.34); lay('brow', coteMixC(ltS, skyH, 0.25), (0.18 + 0.3 * day) * (1 - 0.5 * low)); // the big forms: the buttresses, the tip's end, the brow
     lay('warm', coteMixC(gran, P.red, 0.4), 0.42 * (0.3 + 0.7 * day)); lay('cool', coteMixC(coteMixC(gran, P.whiteS, 0.45), P.rock, 0.35), 0.5);
     lay('stain', coteMixC(coteMixC(P.straw, P.red, 0.45), P.wrack, 0.35), 0.42 * (0.35 + 0.65 * day)); lay('top', coteMixC(lt, skyH, 0.2), 0.2 + 0.5 * day); lay('deep', dp, 0.8);
     lay('lichen', coteMixC(coteMixC(P.white, P.grass, 0.3), lt, 0.3), 0.42 * (0.35 + 0.65 * day)); lay('ochre', coteMixC(coteMixC(P.straw, P.red, 0.42), P.white, 0.06), 0.75 * (0.3 + 0.7 * day));
-    lay('black', coteMixC(dp, P.seaD, 0.12), 0.75); lay('barn', coteMixC(P.white, P.rock, 0.4), 0.55 * (0.45 + 0.55 * day)); lay('wrack', coteMixC(P.wrack, P.weed, 0.4), 0.92);
+    lay('black', coteMixC(dp, P.seaD, 0.12), 0.85); lay('barn', coteMixC(P.white, P.rock, 0.4), 0.55 * (0.45 + 0.55 * day)); lay('wrack', coteMixC(P.wrack, P.weed, 0.4), 0.92);
     const veg = coteMixC(P.heath, P.grass, 0.55);
     lay('grass', veg, 1); lay('straw', coteMixC(coteMixC(P.straw, P.grass, 0.35), veg, 0.15), 1); lay('heath', coteMixC(P.heath, P.heathP, 0.2), 1); lay('gorse', coteMixC(coteMixC(P.heath, P.grass, 0.3), P.rockS, 0.15), 1);
-    lay('mShade', coteMixC(P.heath, P.rockS, 0.55), 0.6); lay('mLit', coteMixC(coteMixC(P.grassT, P.straw, 0.35), sunHex, 0.45 * low), 0.5 * (0.4 + 0.6 * day) + 0.35 * low * kd);
+    lay('mShade', coteMixC(P.heath, P.rockS, 0.55), 0.8); // the break of slope under the mat's edge, sharp lay('mLit', coteMixC(coteMixC(P.grassT, P.straw, 0.35), sunHex, 0.45 * low), 0.5 * (0.4 + 0.6 * day) + 0.35 * low * kd);
     lay('heathF', coteMixC(P.heathP, P.white, 0.1 * day), 0.85); lay('gorseF', coteMixC(P.straw, '#e0b52e', 0.6 * day), 0.9);
-    { const hzc = coteRGB(haze); c.fillStyle = lin(c, x0, 0, w, 0, [[0, coteA(hzc, 0.42)], [0.08, coteA(hzc, 0.24)], [0.3, coteA(hzc, 0.12)], [0.85, coteA(hzc, 0.1)], [1, coteA(hzc, 0.16)]]); c.fill(L.headPath); }
+    lay('back', coteMixC(coteMixC(haze, lt, 0.35), skyH, 0.2), 0.27 * (0.5 + 0.5 * day)); lay('front', coteMixC(shC, dp, 0.25), 0.4); lay('rim', coteMixC(ltS, skyH, 0.25), 0.55 * (0.35 + 0.65 * day)); // the back plane further off, in the air; the front one darker, its brink lit
+    { const hzc = coteRGB(haze); c.fillStyle = lin(c, x0, 0, w, 0, [[0, coteA(hzc, 0.58)], [0.1, coteA(hzc, 0.38)], [0.3, coteA(hzc, 0.17)], [0.55, coteA(hzc, 0.08)], [0.85, coteA(hzc, 0.06)], [1, coteA(hzc, 0.12)]]); c.fill(L.headPath); }
     // its reflection in the sea: the rock itself upside down under each stretch of its waterline (taken from the picture as painted so far),
     // a little shortened, fading with depth, darkened by the water, then broken by the swell
     { const ry = h * 0.032, m = c.getTransform(), cv = c.canvas, sw = 4;
@@ -20007,6 +20538,14 @@ window.LISEUSE_SCENES = (() => {
       c.strokeStyle = coteA(coteRGB(coteMixC(P.seaN, haze, 0.4)), 0.3); c.lineCap = 'round';
       for (let k = 0; k < 11; k++) { const yy = HM.ry0 + (hfy - HM.ry0 + ry) * Math.pow((k + 0.5) / 11, 0.9), xa = x0 + (w - x0) * Rr2() * 0.2; c.lineWidth = Math.max(0.6, L.kS * (0.8 + 0.8 * Rr2())); c.beginPath(); c.moveTo(xa, yy); for (let x = xa; x < w; x += w * (0.02 + 0.04 * Rr2())) { c.lineTo(x, yy + (Rr2() - 0.5)); if (Rr2() < 0.35) c.moveTo(x + w * 0.008, yy); } c.stroke(); }
       c.restore(); }
+    // flat rocks awash in front of its foot: low dark wet slabs barely out of the water, a lit brink, the white water lying round them
+    { const Ra = mulberry(1259), hu = Math.min(h, w * 0.75), kS = L.kS, wet = coteMixC(coteMixC(dp, P.seaD, 0.3), gran, 0.25), brink = coteRGB(coteMixC(coteMixC(ltS, skyH, 0.4), haze, 0.2)), fo = coteRGB(coteSeaFoam(P, D));
+      for (let j = 0; j < 8; j++) { const t = 0.68 + 0.3 * (j + Ra()) / 8, x = t * w, nr = 0.6 + 0.4 * coteSm(0.66, 0.86, t), rw = hu * (0.009 + 0.014 * Ra()) * nr, rh = rw * (0.26 + 0.14 * Ra()), y = L.hfoot(t) + hu * (0.002 + 0.005 * Ra()) * nr + rh * 0.3;
+        if (Ra() < 0.25) continue;
+        const pts = coteBlobPts(x, y, rw, rh, Ra, 9, 0.25); blob(c, pts); c.fillStyle = wet; c.fill();
+        c.save(); blob(c, pts); c.clip(); c.fillStyle = coteA(brink, 0.5 * (0.4 + 0.6 * day)); c.fillRect(x - rw * 1.2, y - rh * 1.3, rw * 2.4, rh * 0.75); c.restore(); // its top, wet, the sky on it
+        c.strokeStyle = coteA(fo, 0.7 * (0.6 + 0.4 * day)); c.lineWidth = Math.max(0.6, 0.8 * kS); c.lineCap = 'round'; // the white water against it, in broken runs at its waterline and in the gaps beside it
+        for (let q = 0; q < 3; q++) { const xa = x + rw * (-1.4 + 1.1 * q + 0.3 * Ra()), l = rw * (0.4 + 0.5 * Ra()), yy = y + rh * 0.3 + (Ra() - 0.3) * kS; c.beginPath(); c.moveTo(xa, yy); c.lineTo(xa + l, yy + (Ra() - 0.5) * kS); c.stroke(); } } }
   }
   // The painted picture for D: the sky, the sun's and the moon's light, the sea and its path, the far coast, the island, the headland with the
   // lighthouse and the keeper's house, the wet and dry sand, the boulders, the dune with its path and the fence. The moving things (the discs,
@@ -20047,11 +20586,24 @@ window.LISEUSE_SCENES = (() => {
     // mat of grass, heather and gorse on top, black and wet at the waterline (the white water there is fx's); lit as the sun stands (headKd:
     // how direct its light is), hazed toward its far tip, its reflection in the sea
     const headKd = Math.max(S.vis * (0.35 + 0.65 * day), 0.25 * M.vis * night) * (1 - 0.65 * Math.max(D.c || 0, D.wet || 0));
-    coteHeadPaint(c, L, P, D, dir, headKd, S);
+    // the side the light comes from on the headland: where the sun (the moon at night) stands as seen from it. It stands right of the whole
+    // arc, so the light comes from its left, morning and evening, less from the side as the body climbs (the scene's dir, from the azimuth,
+    // would light its right side at sunset with the sun on its left)
+    const Bd = S.vis > 0.02 && S.alt > -0.08 ? S : M, dirH = Math.max(-1, Math.min(1, (Bd.x - w * 0.86) / (w * 0.22))) * (1 - 0.45 * coteSm(0.3, 0.8, Bd.alt || 0));
+    coteHeadPaint(c, L, P, D, dirH, headKd, S);
     // the lighthouse on the knoll, the keeper's house on the terrace below it (coteHeadSite: where, and how big)
     const { tx, tb, tht, hx, hbase, hs } = coteHeadSite(L), lightOn = lit.lighthouse ? 1 : 0, keeperOn = lit.keeper ? 1 : 0;
-    coteHouse(c, hx, hbase, hs, P, D, dir, keeperOn, 0.8, headKd);
-    const lamp = coteLight(c, tx, tb, tht, P, D, dir, lightOn, 0.7 + 0.3 * lightOn, headKd);
+    coteHouse(c, hx, hbase, hs, P, D, dirH, keeperOn, 0.8, headKd);
+    const lamp = coteLight(c, tx, tb, tht, P, D, dirH, lightOn, 0.7 + 0.3 * lightOn, headKd);
+    coteHeadBank(c, L, P, D, hx - hs * 1.25, hx + hs * 1.15, hbase, hs, 6131); coteHeadBank(c, L, P, D, tx - tht * 0.24, tx + tht * 0.24, tb, tht * 0.3, 6143); // the ground rising in front of their feet
+    // their shadows, thrown away from the light (it comes from their left): the house's on the flank of the knoll that rises beside it, longer
+    // as the sun gets low; and the shade at the right of each foot, on the clumps
+    { const Lt = Bd === S ? S : null, k = Lt ? Lt.vis * headKd * coteSm(0.1, 0.5, -dirH) : 0;
+      if (k > 0.02) {
+        const shd = coteRGB(coteMixC(coteMixC(P.granS, P.head, 0.3), W.sky[0][1], 0.25)), lo = 1 - coteSm(0.08, 0.6, Lt.alt), xr = hx + hs * 0.8, lx = hs * (0.5 + 1.6 * lo), ht = hs * (0.75 + 0.35 * lo);
+        c.save(); c.clip(L.headPath); c.fillStyle = lin(c, xr, 0, xr + lx, 0, [[0, coteA(shd, 0.7 * k)], [0.6, coteA(shd, 0.45 * k)], [1, coteA(shd, 0)]]);
+        c.beginPath(); c.moveTo(xr - 1, hbase + 1); c.lineTo(xr - 1, hbase - ht); c.quadraticCurveTo(xr + lx * 0.45, hbase - ht * 0.95, xr + lx, hbase - ht * 0.35); c.lineTo(xr + lx, hbase + 1); c.closePath(); c.fill(); c.restore();
+        for (const [fx, fy, fw] of [[xr, hbase, hs * 0.5], [tx + tht * 0.105 * 0.9, tb, tht * 0.12]]) { c.save(); c.translate(fx + fw * 0.45, fy - 0.5); c.scale(1, 0.18); c.fillStyle = rad(c, 0, 0, fw, [[0, coteA(shd, 0.45 * k)], [0.6, coteA(shd, 0.2 * k)], [1, coteA(shd, 0)]]); c.fillRect(-fw, -fw, fw * 2, fw * 2); c.restore(); } } }
     // the sand: dry toward us; the wet band where the swash runs, darker and mirroring the sky, its upper edge soft and lobed (each band nearer the
     // sea adds a little to it); a film of water at the waterline melting the sea into the sand; the sky's sheen in long lenses; ripples
     const sandTop = L.shoreMin - 2, shoreP = (dy) => { c.beginPath(); c.moveTo(-6, h); for (let x = -6; x <= w + 6; x += 6) c.lineTo(x, L.shore(Math.max(0, Math.min(1, x / w))) + dy(x)); c.lineTo(w + 6, h); c.closePath(); };
@@ -20083,7 +20635,7 @@ window.LISEUSE_SCENES = (() => {
     coteSandDrift(c, L, P, D, S, M); // a log of driftwood, half sunk in the sand (the dunes are drawn over it)
     coteSandDune(c, L, P, D, S, M); // the dune with its crest, its path and the beds of its grass, the fence's shadows; the low dune at the lower right
     vignette(c, w, h, 0.22);
-    return { L, P, D, lamp, stars, bodies: B, dir, u, kS, hz, win: { x: hx + hs * 0.18, y: hbase - hs * 0.46 } };
+    return { L, P, D, lamp, stars, bodies: B, dir, u, kS, hz, win: { x: hx - hs * 0.18, y: hbase - hs * 0.43 } };
   }
 
   // ---- motion ----
@@ -20760,11 +21312,15 @@ window.LISEUSE_SCENES = (() => {
         for (const s of S) {
           const q = s.q, B = M.T[s.i], Tc = sp.T[s.i], X = cx + (s.x - cx) * sx, sl = (M.Hs(s.x + 6) - M.Hs(s.x - 6)) / 12, k = s.f * s.ls * sx, ks = (sl * s.f + s.tl) * sy * s.ls, dT = B.H * 0.75 * sm(1, 1.6, z), yT = hz + (M.Hs(s.x) + dT) * sy;
           // the face standing up (scaled up from its trough by e: taller for a big wave, much taller in a storm), deep below the lip; then the lip
-          // thrown, grown out from the peak (g), the crest dropping as it pitches (cu)
+          // thrown, opening along a good part of the crest and peeling out from there (g, A), the crest dropping as it pitches (cu)
           const hi = (1 + 0.5 * storm) * (0.85 + 0.25 * Math.min(1, amp)), af = sm(q + 1.7, q + 0.2, z) * (1 - sm(q - 0.02, q - 0.45, z)), e = hi * (0.4 + 0.6 * sm(q + 1.7, q, z)) * (1 - 0.35 * sm(q - 0.05, q - 0.4, z));
-          const a1 = sm(q + 0.08, q - 0.08, z) * (1 - sm(q - 0.35, q - 0.62, z)), g = 0.12 + 0.88 * Math.sqrt(sm(q + 0.08, q - 0.42, z)), cu = sm(q + 0.02, q - 0.45, z);
-          if (af > 0.01) { c.save(); c.transform(k, ks, 0, sy * e, X, yT); blit(Tc.face, af * (0.58 + 0.2 * amp) * (0.5 + 0.5 * sm(1.2, 2.2, z)), -B.mg - B.pk, -B.sp - B.H, B.Wt, B.hF); blit(Tc.glass, af * (0.62 + 0.3 * amp) * (0.4 + 0.6 * (1 - night)), -B.mg - B.pk, -B.sp - B.H, B.Wt, B.hF); blit(Tc.crest, af * (1 - a1) * (0.45 + 0.3 * amp) * (0.45 + 0.55 * (1 - night)) * sm(q + 1.6, q + 0.6, z), -B.mg - B.pk, -B.sp - B.H, B.Wt, B.hF); c.restore(); }
-          if (a1 > 0.01) { c.save(); c.transform(k * g, ks * g, 0, sy * e * (1 - 0.3 * cu), X, yT); blit(Tc.lip, a1 * (0.85 + 0.25 * amp), -B.mg - B.pk, -B.sp - B.H, B.Wt, B.hF); blit(Tc.lipS, a1 * 0.55, -B.mg - B.pk, -B.sp - B.H, B.Wt, B.hF); c.restore(); }
+          const a1 = sm(q + 0.24, q - 0.1, z) * (1 - sm(q - 0.35, q - 0.62, z)), cu = sm(q + 0.02, q - 0.45, z);
+          // the break opens at once along a good part of the crest (g from 0.38: not from a point), round an anchor A near the peak but off it by
+          // a little each time, so one side peels out faster than the other; ext() takes a point of the template to where it is drawn now
+          const hb = coteHash(n * 5 + s.i, 131), hd = coteHash(n * 5 + s.i, 139), A = Math.max(B.Lt * 0.15, Math.min(B.Lt * 0.85, B.pk + (hb - 0.5) * 0.36 * B.Lt)) - B.pk;
+          const g = 0.38 + 0.62 * Math.sqrt(sm(q + 0.14 - 0.1 * hd, q - 0.45 - 0.08 * hd, z)), ext = (uu) => A + (uu - A) * g;
+          if (af > 0.01) { c.save(); c.transform(k, ks, 0, sy * e, X, yT); blit(Tc.face, af * (0.5 + 0.2 * amp) * (0.5 + 0.5 * sm(1.2, 2.2, z)), -B.mg - B.pk, -B.sp - B.H, B.Wt, B.hF); blit(Tc.glass, af * (0.62 + 0.3 * amp) * (0.4 + 0.6 * (1 - night)), -B.mg - B.pk, -B.sp - B.H, B.Wt, B.hF); blit(Tc.crest, af * (1 - a1) * (0.45 + 0.3 * amp) * (0.45 + 0.55 * (1 - night)) * sm(q + 1.6, q + 0.6, z), -B.mg - B.pk, -B.sp - B.H, B.Wt, B.hF); c.restore(); }
+          if (a1 > 0.01) { c.save(); c.transform(k, ks, 0, sy * e * (1 - 0.3 * cu), X, yT); c.translate(A * (1 - g), 0); c.scale(g, 1); blit(Tc.lip, a1 * (0.85 + 0.25 * amp), -B.mg - B.pk, -B.sp - B.H, B.Wt, B.hF); blit(Tc.lipS, a1 * 0.55, -B.mg - B.pk, -B.sp - B.H, B.Wt, B.hF); c.restore(); }
           // the whitewater rolling in all the way to the shore, spreading along, thinning; spent at the last to a broken line and lace (the swash takes it on)
           const bT = sm(q - 0.12, q - 0.4, z) * (1 - sm(1.22, 1.03, z)), bN = sm(1.5, 1.22, z) * (1 - sm(1.07, 0.99, z));
           if (bT > 0.01 || bN > 0.01) { const gs = 1 + 0.45 * sm(q - 0.2, 1, z), ba = Math.min(0.88 + 0.1 * storm, 0.66 + 0.25 * amp) * (0.55 + 0.45 * sm(1.1, q - 0.2, z)), yB = hz + (M.Hs(s.x) + B.tb * 0.3 + B.H * 0.65 * sm(1, 1.6, z)) * sy;
@@ -20776,7 +21332,7 @@ window.LISEUSE_SCENES = (() => {
           const wS = sm(0.1, 0.35, a1) * sm(0.2, 0.45, storm + 0.3 * amp);
           if (wS > 0.01) { const kk = wS * a1 * (0.15 + 0.6 * storm) * Math.min(1, 0.4 + 0.4 * amp), rS = u * 0.03 * sy * (0.7 + 0.5 * amp) * (1 + 0.6 * storm);
             for (let j = 0; j < 7; j++) { const wj = j < 3 ? 1 : sm(0.15, 0.6, storm); if (wj < 0.01) continue;
-              const uu = (j === 0 ? 0 : j === 1 ? -B.pk : j === 2 ? B.Lt - B.pk : (j - 3 + 0.5) / 4 * B.Lt - B.pk) * g, qq = (t * 0.6 + n + s.i * 0.37 + j * 0.29) % 1, r = rS * (1 + qq), yS = yT - (B.H * e + M.th * (1.5 + 3 * qq) * (1 + storm)) * sy, x = X + uu * k + qq * u * 0.03 * (1 + storm);
+              const uu = ext(j === 0 ? 0 : j === 1 ? -B.pk : j === 2 ? B.Lt - B.pk : (j - 3 + 0.5) / 4 * B.Lt - B.pk), qq = (t * 0.6 + n + s.i * 0.37 + j * 0.29) % 1, r = rS * (1 + qq), yS = yT - (B.H * e + M.th * (1.5 + 3 * qq) * (1 + storm)) * sy, x = X + uu * k + qq * u * 0.03 * (1 + storm);
               for (let mm = 0; mm < 3; mm++) { const rm = r * (1 - 0.25 * mm); c.globalAlpha = Math.min(1, wj * kk * Math.sin(Math.PI * qq) * (0.4 - 0.1 * mm) * (uu ? 0.7 : 1)); c.drawImage(sp.dot, x + mm * r * 1.3 - rm * 2, yS + uu * ks - mm * r * 0.35 - rm * 0.6, rm * 4, rm * 1.2); } } }
         }
       }
@@ -21500,6 +22056,336 @@ window.LISEUSE_SCENES = (() => {
     return { rx, n, hMul, wMul, mat, lean, seed, smokePot, pots };
   }
 
+  // The Eiffel Tower's outline in metres: half-width of the outer faces of the pillars (OUT) and of the opening between them (IN),
+  // from the measured tower (125 m at the foot, 70.7 m 1st platform, 41 m 2nd platform, 18.65 m 3rd platform).
+  const PARIS_EIF_OUT = [[0, 62.5], [15, 53.0], [30, 45.0], [45, 38.6], [57.6, 34.0], [75, 28.6], [95, 23.4], [115.7, 19.2], [140, 14.6], [170, 10.8], [200, 8.2], [230, 6.5], [256, 5.5], [276, 5.0]];
+  const PARIS_EIF_IN = [[0, 37.0], [15, 32.5], [30, 28.2], [45, 24.2], [57.6, 21.0], [75, 16.5], [95, 11.0], [108, 7.2], [115.7, 5.0]];
+  // Smooth monotone interpolation (cubic Hermite) through a [[y, value], ...] table.
+  function parisEifProf(tab, y) {
+    const n = tab.length;
+    if (y <= tab[0][0]) return tab[0][1];
+    if (y >= tab[n - 1][0]) return tab[n - 1][1];
+    let j = 0;
+    while (j < n - 2 && y > tab[j + 1][0]) j++;
+    const sec = (a) => (tab[a + 1][1] - tab[a][1]) / (tab[a + 1][0] - tab[a][0]);
+    const slope = (a) => { if (a <= 0) return sec(0); if (a >= n - 1) return sec(n - 2); const s0 = sec(a - 1), s1 = sec(a); return s0 * s1 <= 0 ? 0 : 0.5 * (s0 + s1); };
+    const y0 = tab[j][0], y1 = tab[j + 1][0], hk = y1 - y0, t = (y - y0) / hk, t2 = t * t, t3 = t2 * t;
+    return (2 * t3 - 3 * t2 + 1) * tab[j][1] + (t3 - 2 * t2 + t) * hk * slope(j) + (-2 * t3 + 3 * t2) * tab[j + 1][1] + (t3 - t2) * hk * slope(j + 1);
+  }
+
+  // Notre-Dame de Paris on the far right horizon, seen three-quarters from the south-west: the west front (two square towers with
+  // their tall belfry bays, the gallery, the rose, the gallery of kings) turned a little to the left, the long south flank with its
+  // flying buttresses, the south transept and its rose, the apse, and the flèche at the crossing.
+  // Metres: e along the axis (0 = west front, 128 = east end), n across (0 = axis, negative = south side, toward us), y up.
+  function parisNDGeom(B, w, h, hz) {
+    const th = 1.01;
+    return { k: h * 0.00136, X0: B.x + B.w * 0.25, Yg: hz - h * 0.036, ce: Math.cos(th), se: Math.sin(th), d: 0.72 };
+  }
+  // Top of the cathedral's outline (in metres above its ground) at screen x, for the sky's outline; -1 where it is not.
+  function parisNDTop(G, x) {
+    const m = (x - G.X0) / G.k; // metres across the screen from the middle of the west front
+    let t = -1;
+    const X = (e, n) => e * G.ce - n * G.se;
+    const inR = (a, b) => m >= Math.min(a, b) && m <= Math.max(a, b);
+    if (inR(X(0, 20.5), X(14, 6))) t = Math.max(t, 69);
+    if (inR(X(0, -6), X(14, -20.5))) t = Math.max(t, 69);
+    if (inR(X(0, 6), X(0, -6))) t = Math.max(t, 45.5);
+    if (inR(X(12, 0), X(106, 0))) t = Math.max(t, 43);
+    const xa = X(106, 0), xb = X(128, 0);
+    if (inR(xa, xb)) t = Math.max(t, parisLr(43, 33, (m - xa) / (xb - xa)));
+    if (inR(X(61, -24), X(75, -24))) { const xm = X(68, -24), hw = Math.abs(X(75, -24) - xm); t = Math.max(t, 45 - 12 * Math.abs(m - xm) / hw); }
+    const xf = X(68, 0), df = Math.abs(m - xf);
+    if (df <= 3.6) t = Math.max(t, 57);
+    if (df <= 2.6) t = Math.max(t, 96 - 36 * df / 2.6);
+    return t;
+  }
+
+  // Notre-Dame painted on a small canvas of its own and laid on the far band a little softened: a stone building this far away
+  // has no razor edge (where the canvas filter is missing it is simply laid sharp).
+  function parisNDDraw(c, B, P, D, L) {
+    const G = B.nd, xf = c.getTransform ? c.getTransform() : { a: 1 };
+    const ps = Math.max(1, Math.min(3, Math.abs(xf.a || 1)));
+    const x0 = Math.floor(G.X0 - 24 * G.k), x1 = Math.ceil(G.X0 + 84 * G.k), y0 = Math.floor(G.Yg - 101 * G.k), y1 = Math.ceil(G.Yg + 3);
+    const cv = document.createElement('canvas');
+    cv.width = Math.max(1, Math.round((x1 - x0) * ps)); cv.height = Math.max(1, Math.round((y1 - y0) * ps));
+    const g = cv.getContext('2d');
+    g.scale(ps, ps); g.translate(-x0, -y0);
+    parisNotreDame(g, B, P, D, L);
+    c.save();
+    if ('filter' in c) c.filter = `blur(${(0.34 * ps).toFixed(2)}px)`;
+    c.drawImage(cv, x0, y0, x1 - x0, y1 - y0);
+    c.restore();
+  }
+
+  function parisNotreDame(c, B, P, D, L) {
+    const G = B.nd, k = G.k, ce = G.ce, se = G.se, rig = P.rig;
+    const X = (e, n) => G.X0 + k * (e * ce - n * se), Y = (y) => G.Yg - k * y;
+    const pt = (e, n, y) => [X(e, n), Y(y)];
+    const sunSide = rig.dir < 0 ? -1 : 1, dirK = parisCl(Math.abs(rig.dir) / 0.5, 0, 1) * (rig.dk == null ? 1 : rig.dk);
+    const night = P.night;
+    const floodOn = (D.lit && D.lit.street) ? 1 : parisSm(18.4, 19.0, D.T) + (1 - parisSm(6.7, 7.2, D.T));
+    const flood = parisCl(floodOn * parisSm(0.45, 0.88, night), 0, 1); // the floodlights only tell once the sky has darkened
+    const warmK = parisCl((P.gold + P.dusk * 0.8) * (1 - P.wet * 0.7), 0, 1);
+    const stone = [210, 190, 160], lead = [96, 106, 122];
+    const floodCol = [244, 210, 152];
+    // the air between us and the Île de la Cité: every value is pulled toward the haze of its distance
+    const veil = kitMix(P.hazeCol, P.skyHor, 0.35), veilK = 0.15 + 0.07 * P.day * (1 - P.wet);
+    // tone of a surface whose outward normal is (ne, nn) in plan and nu upward; fl = how much the night floodlights reach it
+    const tone = (base, ne, nn, nu = 0, fl = 0, y = 30, extra = 0) => {
+      const vx = ne * ce - nn * se, vd = ne * se + nn * ce;
+      let ex = vx * sunSide * 0.80 * dirK - vd * 0.08 + nu * 0.25 - 0.06 + extra;
+      if (ex > 0) ex *= 0.6; // sunlit stone stays a warm cream, never white
+      let col = parisLit(rig, base, parisCl(ex, -1, 1), 0.42);
+      if (ex > 0 && warmK > 0.01) col = kitMix(col, [248, 184, 124], 0.30 * warmK * ex);
+      if (ex > 0) col = kitMix(col, [232, 204, 160], 0.22 * ex * P.day * (1 - P.wet));
+      col = P.fog(col, G.d + 0.10 * Math.pow(1 - parisCl(y / 70, 0, 1), 1.5));
+      col = kitMix(col, veil, veilK * (1 - 0.6 * fl * flood));
+      if (fl > 0 && flood > 0.01) col = kitMix(col, kitMix(floodCol, [255, 236, 200], parisCl(y / 70, 0, 1) * 0.3), fl * flood * (0.76 - 0.3 * parisCl(y / 90, 0, 1)));
+      return col;
+    };
+    const poly = (pts, fill) => { c.fillStyle = typeof fill === 'string' ? fill : kitCss(fill); c.beginPath(); c.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) c.lineTo(pts[i][0], pts[i][1]); c.closePath(); c.fill(); };
+    const line = (a, b, col, lw, al = 1) => { c.strokeStyle = parisA(col, al); c.lineWidth = lw; c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke(); };
+    const lw = Math.max(0.4, k * 0.38);
+
+    // west (facade) faces, south faces, roofs
+    const sW = (y, extra = 0) => tone(stone, -1, 0, 0, 1, y, extra);
+    const sS = (y, fl = 0.55, extra = 0) => tone(stone, 0, -1, 0, fl, y, extra);
+    // openings: not black but the blue-grey of a shadow seen through the haze, half way from the wall's own tone
+    const shadowBlue = kitMix(P.fog(parisLit(rig, [72, 80, 100], -0.7, 0.6), G.d + 0.02), veil, veilK * 0.6);
+    const holeCol = (y, f) => kitMix(f || sW(y), shadowBlue, 0.66 + 0.10 * night);
+    const roofS = tone(lead, 0, -0.82, 0.57, 0.15, 38), roofW = tone(lead, -0.82, 0, 0.57, 0.2, 38);
+    const ridgeCol = kitMix(roofS, P.skyHor, 0.35);
+
+    c.save();
+    c.lineCap = 'round';
+    c.lineJoin = 'round';
+
+    // ---- 1. The apse and its fan of flying buttresses (farthest east)
+    {
+      const ea = 108, R = 7.2, Rb = 19;
+      const wall = [], roofP = [];
+      for (let j = 0; j <= 12; j++) {
+        const f = -Math.PI / 2 + Math.PI * j / 12;
+        wall.push([ea + R * Math.cos(f), R * Math.sin(f)]);
+      }
+      // flyers of the chevet (behind the wall, then the wall over them)
+      for (const f of [-1.15, -0.62, -0.1, 0.42]) {
+        const pe = ea + Rb * Math.cos(f), pn = Rb * Math.sin(f), we = ea + R * Math.cos(f), wn = R * Math.sin(f);
+        const col = tone(stone, Math.cos(f), Math.sin(f), 0, 0.3, 24, -0.1);
+        const top = [], bot = [];
+        for (let j = 0; j <= 6; j++) { const t = j / 6, e = parisLr(pe, we, t), n = parisLr(pn, wn, t); top.push(pt(e, n, 24 + 6 * t)); bot.push(pt(e, n, 18 + 10.5 * Math.sin(t * Math.PI / 2))); }
+        poly(top.concat(bot.reverse()), col);
+        poly([pt(pe - 1, pn, 0), pt(pe - 1, pn, 25.5), pt(pe, pn, 30), pt(pe + 1, pn, 25.5), pt(pe + 1, pn, 0)], col);
+      }
+      const wallTop = wall.map(([e, n]) => pt(e, n, 33)), wallBot = wall.map(([e, n]) => pt(e, n, 18)).reverse();
+      c.fillStyle = lin(c, X(ea, -R), 0, X(ea + R, 0), 0, [[0, kitCss(sS(28, 0.3, -0.12))], [1, kitCss(tone(stone, 1, 0, 0, 0.2, 28, -0.12))]]);
+      c.beginPath(); for (const [i, p] of wallTop.concat(wallBot).entries()) i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]); c.closePath(); c.fill();
+      for (let j = 1; j < 12; j += 2) { const [e, n] = wall[j]; if (n > 2) continue; poly([pt(e, n, 22), pt(e, n, 30), pt(e + 0.6, n - 0.3, 30.6), pt(e + 1.2, n - 0.6, 30), pt(e + 1.2, n - 0.6, 22)], holeCol(26)); }
+      // half-cone roof
+      roofP.push(pt(ea - 2, 0, 43));
+      for (let j = 0; j <= 12; j++) { const [e, n] = wall[j]; roofP.push(pt(e, n, 33)); }
+      c.fillStyle = lin(c, X(ea, -R), 0, X(ea + R, 0), 0, [[0, kitCss(roofS)], [1, kitCss(tone(lead, 0.8, 0, 0.57, 0.1, 38))]]);
+      c.beginPath(); roofP.forEach((p, i) => (i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]))); c.closePath(); c.fill();
+    }
+
+    // ---- 2. The clerestory's south wall, the nave roof's south slope, the aisle roofs
+    const e0 = 13, e1 = 106, bays = [];
+    for (let e = 18; e < e1 - 2; e += 8.6) if (e < 59 || e > 77) bays.push(e);
+    poly([pt(e0, -6.5, 33), pt(e1, -6.5, 33), pt(e1, -6.5, 18), pt(e0, -6.5, 18)], sS(28, 0.45, -0.12));
+    for (const e of bays) poly([pt(e - 1.3, -6.5, 22), pt(e - 1.3, -6.5, 29.2), pt(e, -6.5, 30.6), pt(e + 1.3, -6.5, 29.2), pt(e + 1.3, -6.5, 22)], holeCol(26));
+    poly([pt(e0, -7.2, 32.6), pt(e1, -7.2, 32.6), pt(e1, 0, 43), pt(e0, 0, 43)], roofS);
+    // lead seams and the bright ridge
+    c.strokeStyle = parisA(kitMix(roofS, P.skyHor, 0.2), 0.35);
+    c.lineWidth = lw * 0.7;
+    c.beginPath();
+    for (let e = e0 + 4; e < e1; e += 4.5) { const a = pt(e, -7.2, 32.6), b = pt(e, 0, 43); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); }
+    c.stroke();
+    line(pt(e0, 0, 43), pt(e1, 0, 43), ridgeCol, lw * 1.2, 0.9);
+    line(pt(e0, -7.2, 32.6), pt(e1, -7.2, 32.6), kitMix(sS(33), [30, 30, 40], 0.4), lw, 0.8);
+    // with the light from the west, the south tower's shadow falls across the start of the nave roof
+    if (sunSide < 0 && dirK > 0.05) {
+      const len = 12 + 20 * (1 - parisCl(rig.sunAlt, 0, 1)), sa = 0.30 * dirK * (1 - 0.7 * rig.ov) * (1 - 0.6 * night);
+      poly([pt(e0, -7.2, 32.6), pt(e0 + len * 0.55, -7.2, 32.6), pt(e0 + len, 0, 43), pt(e0, 0, 43)], parisA([28, 32, 48], sa));
+    }
+    // aisle and tribune roofs, sloping down to the south
+    poly([pt(e0 + 1, -7, 21.5), pt(e1, -7, 21.5), pt(e1, -22, 13.5), pt(e0 + 1, -22, 13.5)], tone(lead, 0, -0.5, 0.86, 0.1, 18));
+    poly([pt(e0 + 1, -22, 13.5), pt(e1, -22, 13.5), pt(e1, -22, 0), pt(e0 + 1, -22, 0)], sS(10, 0.4));
+
+    // ---- 3. Flying buttresses of the south flank: a pier with its pinnacle, and a thin flyer leaning on the clerestory
+    for (const e of bays) {
+      const colW = tone(stone, -1, 0, 0, 0.3, 24, -0.32), colS = sS(20, 0.3, -0.1);
+      const top = [], bot = [];
+      for (let j = 0; j <= 8; j++) { const t = j / 8, n = parisLr(-19.6, -7, t); top.push(pt(e, n, 26 + 4.6 * t)); bot.push(pt(e, n, 21.5 + 7.6 * Math.sin(t * Math.PI / 2))); }
+      poly(top.concat(bot.reverse()), colW);
+      line(top[0], top[8], kitMix(colW, P.skyHor, 0.25), lw * 0.8, 0.8);
+      // pier: west face and south face, then a pinnacle
+      poly([pt(e - 1.1, -19.4, 0), pt(e - 1.1, -19.4, 26), pt(e - 1.1, -22.2, 26), pt(e - 1.1, -22.2, 0)], colW);
+      poly([pt(e - 1.1, -22.2, 0), pt(e - 1.1, -22.2, 26), pt(e + 1.1, -22.2, 26), pt(e + 1.1, -22.2, 0)], colS);
+      poly([pt(e - 1.1, -22.2, 26), pt(e, -20.8, 32.5), pt(e + 1.1, -22.2, 26)], tone(stone, 0, -0.7, 0.7, 0.3, 30));
+    }
+
+    // ---- 4. The south transept: its west wall, the west slope of its roof, then its gable front with the great south rose
+    {
+      const ea = 61, eb = 75, em = 68, nf = -24;
+      poly([pt(ea, -7, 33), pt(ea, nf, 33), pt(ea, nf, 15), pt(ea, -7, 15)], sW(26, -0.05));
+      for (const n of [-11, -16.5]) poly([pt(ea, n + 1.2, 21), pt(ea, n + 1.2, 29), pt(ea, n, 30.5), pt(ea, n - 1.2, 29), pt(ea, n - 1.2, 21)], holeCol(25));
+      poly([pt(ea, nf, 33), pt(em, nf, 43), pt(em, -6, 43), pt(ea, -6, 33)], roofW);
+      line(pt(em, nf, 43), pt(em, -6, 43), ridgeCol, lw * 1.1, 0.85);
+      const gS = sS(30, 0.8);
+      poly([pt(ea, nf, 0), pt(ea, nf, 33), pt(em, nf, 45), pt(eb, nf, 33), pt(eb, nf, 0)], gS);
+      // corner turrets with their pinnacles
+      for (const e of [ea, eb]) {
+        poly([pt(e - 0.9, nf - 0.4, 0), pt(e - 0.9, nf - 0.4, 40), pt(e, nf - 0.4, 49), pt(e + 0.9, nf - 0.4, 40), pt(e + 0.9, nf - 0.4, 0)], sS(36, 0.8, 0.06));
+      }
+      // the rose: dark glass, a stone ring and its spokes
+      const rc = pt(em, nf, 26.5), rx = 5.6 * ce * k, ry = 5.6 * k;
+      c.fillStyle = kitCss(holeCol(26));
+      c.beginPath(); c.ellipse(rc[0], rc[1], rx, ry, 0, 0, TAU); c.fill();
+      c.strokeStyle = parisA(gS, 0.85); c.lineWidth = lw * 0.8;
+      c.beginPath(); c.ellipse(rc[0], rc[1], rx * 0.45, ry * 0.45, 0, 0, TAU);
+      for (let j = 0; j < 12; j++) { const a = TAU * j / 12; c.moveTo(rc[0] + rx * 0.45 * Math.cos(a), rc[1] + ry * 0.45 * Math.sin(a)); c.lineTo(rc[0] + rx * Math.cos(a), rc[1] + ry * Math.sin(a)); }
+      c.stroke();
+      c.strokeStyle = parisA(kitMix(gS, [255, 250, 240], 0.25), 0.9); c.lineWidth = lw * 1.1;
+      c.beginPath(); c.ellipse(rc[0], rc[1], rx * 1.06, ry * 1.06, 0, 0, TAU); c.stroke();
+      // claire-voie under the rose and the little gable rose above it
+      for (let j = 0; j < 5; j++) { const e = ea + 2.4 + j * 2.3; poly([pt(e - 0.6, nf, 16), pt(e - 0.6, nf, 19.4), pt(e, nf, 20.2), pt(e + 0.6, nf, 19.4), pt(e + 0.6, nf, 16)], holeCol(18)); }
+      const gr = pt(em, nf, 37.6);
+      c.fillStyle = kitCss(holeCol(37)); c.beginPath(); c.ellipse(gr[0], gr[1], 1.5 * ce * k, 1.5 * k, 0, 0, TAU); c.fill();
+      line(pt(ea, nf, 33), pt(em, nf, 45), kitMix(gS, P.skyHor, 0.3), lw, 0.7);
+      line(pt(em, nf, 45), pt(eb, nf, 33), kitMix(gS, [20, 20, 30], 0.3), lw, 0.6);
+    }
+
+    // ---- 5. The flèche at the crossing: an open octagonal belfry with gables and pinnacles, then a needle with crockets, the cross
+    {
+      const fx = X(68, 0), yb = Y(43), cl = tone(lead, -1, 0, 0, 0.35, 70), cr = tone(lead, 0, -1, 0, 0.35, 70);
+      const lit = sunSide < 0 ? cl : cr, shd = sunSide < 0 ? cr : cl;
+      const hwB = 3.4 * k, hwS = 2.3 * k;
+      const grad = (x0, x1) => { const g = c.createLinearGradient(x0, 0, x1, 0); g.addColorStop(0, kitCss(sunSide < 0 ? lit : shd)); g.addColorStop(0.5, kitCss(kitMix(lit, shd, 0.5))); g.addColorStop(1, kitCss(sunSide < 0 ? shd : lit)); return g; };
+      // lower stage 43..56 m: belfry with tall lancets, four gables, four pinnacles
+      c.fillStyle = grad(fx - hwB, fx + hwB);
+      c.fillRect(fx - hwB, Y(56), hwB * 2, yb - Y(56));
+      c.fillStyle = kitCss(holeCol(50));
+      for (const f of [-0.5, 0.05, 0.55]) c.fillRect(fx + f * hwB - 0.4 * k, Y(54), 0.8 * k, Y(46) - Y(54));
+      c.fillStyle = grad(fx - hwB, fx + hwB);
+      c.beginPath();
+      c.moveTo(fx - hwB * 1.05, Y(56)); c.lineTo(fx - hwB * 0.5, Y(60)); c.lineTo(fx, Y(56.5)); c.lineTo(fx + hwB * 0.5, Y(60)); c.lineTo(fx + hwB * 1.05, Y(56));
+      c.closePath(); c.fill();
+      for (const f of [-1.1, 1.1]) { c.beginPath(); c.moveTo(fx + f * hwB - 0.5 * k, Y(55)); c.lineTo(fx + f * hwB, Y(62)); c.lineTo(fx + f * hwB + 0.5 * k, Y(55)); c.closePath(); c.fill(); }
+      // needle 56..92 m
+      c.fillStyle = grad(fx - hwS, fx + hwS);
+      c.beginPath(); c.moveTo(fx - hwS, Y(57)); c.lineTo(fx - 0.25 * k, Y(91.5)); c.lineTo(fx + 0.25 * k, Y(91.5)); c.lineTo(fx + hwS, Y(57)); c.closePath(); c.fill();
+      // crockets along both edges and a few rings
+      c.strokeStyle = parisA(kitMix(lit, P.skyHor, 0.15), 0.8); c.lineWidth = lw * 0.75;
+      c.beginPath();
+      for (let y = 59; y < 90; y += 2.6) {
+        const t = (y - 57) / 34.5, hw = parisLr(hwS, 0.25 * k, t);
+        c.moveTo(fx - hw, Y(y)); c.lineTo(fx - hw - 0.7 * k, Y(y + 0.5));
+        c.moveTo(fx + hw, Y(y)); c.lineTo(fx + hw + 0.7 * k, Y(y + 0.5));
+      }
+      for (const y of [64, 72, 80]) { const t = (y - 57) / 34.5, hw = parisLr(hwS, 0.25 * k, t); c.moveTo(fx - hw, Y(y)); c.lineTo(fx + hw, Y(y)); }
+      c.stroke();
+      line([fx, Y(91.5)], [fx, Y(96)], shd, lw * 0.9, 0.95);
+      line([fx - 0.9 * k, Y(94.6)], [fx + 0.9 * k, Y(94.6)], shd, lw * 0.8, 0.9);
+    }
+
+    // ---- 6. The west front and its towers (nearest)
+    {
+      const nN = 20.5, nT = 6, eT = 14, yG = 45.5, yT = 69;
+      const fW = (y, extra = 0) => sW(y, extra), fS = (y, extra = 0) => sS(y, 0.6, extra);
+      // south face of the south tower and of the front's body
+      poly([pt(0, -nN, 0), pt(0, -nN, yT), pt(eT, -nN, yT), pt(eT, -nN, 0)], fS(40));
+      // in the gap between the towers: the north tower's south face (in the south tower's shade)
+      poly([pt(0, nT, yG), pt(0, nT, yT), pt(eT, nT, yT), pt(eT, nT, yG)], fS(58, -0.35));
+      // the west face: full width up to the gallery, the two towers above it
+      poly([pt(0, nN, 0), pt(0, nN, yT), pt(0, nT, yT), pt(0, nT, yG), pt(0, -nT, yG), pt(0, -nT, yT), pt(0, -nN, yT), pt(0, -nN, 0)], fW(40));
+      // portals (their pointed tops just show above the roofs in front)
+      const portal = (n, hw, top) => {
+        const inner = holeCol(10);
+        poly([pt(0, n + hw, 0), pt(0, n + hw, top - hw * 1.4), pt(0, n, top), pt(0, n - hw, top - hw * 1.4), pt(0, n - hw, 0)], inner);
+        // the splayed jambs of the recess: the one facing the light is lit, the other one throws its shadow inside
+        const sg = sunSide < 0 ? 1 : -1, litN = n - sg * hw, shdN = n + sg * hw;
+        poly([pt(0, litN, 0), pt(0, litN, top - hw * 1.4), pt(0, litN + sg * hw * 0.4, top - hw * 1.2), pt(0, litN + sg * hw * 0.4, 0)], kitMix(fW(12), inner, 0.35 + 0.4 * (1 - dirK)));
+        poly([pt(0, shdN, 0), pt(0, shdN, top - hw * 1.4), pt(0, shdN - sg * hw * 0.55, top - hw * 1.0), pt(0, shdN - sg * hw * 0.55, 0)], kitMix(inner, shadowBlue, 0.45 * dirK));
+        c.strokeStyle = parisA(kitMix(fW(12), [255, 248, 236], 0.12), 0.6); c.lineWidth = lw;
+        c.beginPath(); const a = pt(0, n + hw + 0.9, top - hw * 1.5), b = pt(0, n, top + 1.2), d = pt(0, n - hw - 0.9, top - hw * 1.5);
+        c.moveTo(a[0], a[1]); c.quadraticCurveTo(a[0], b[1], b[0], b[1]); c.quadraticCurveTo(d[0], b[1], d[0], d[1]); c.stroke();
+      };
+      portal(13.4, 2.9, 15.5); portal(0, 3.6, 17.5); portal(-13.4, 2.9, 15.5);
+      // string courses (lit top line, shadow under it): under the gallery of kings, over it, under the great gallery, its top, tower tops
+      const course = (y, n0, n1, sh = 1) => {
+        line(pt(0, n0, y), pt(0, n1, y), kitMix(fW(y), [255, 250, 240], 0.18), lw * 1.1, 0.7);
+        line(pt(0, n0, y - 0.6), pt(0, n1, y - 0.6), shadowBlue, lw * 0.9, 0.45 * sh);
+      };
+      // gallery of kings: 28 niches
+      for (let j = 0; j < 28; j++) { const n = parisLr(nN - 1.2, -nN + 1.2, (j + 0.5) / 28); poly([pt(0, n + 0.42, 20.6), pt(0, n + 0.42, 23.4), pt(0, n - 0.42, 23.4), pt(0, n - 0.42, 20.6)], kitMix(holeCol(22), fW(22), 0.35)); }
+      course(20.2, nN, -nN); course(24.2, nN, -nN);
+      // rose level: the west rose in the middle (with the Virgin's balustrade before it) and twin lancets under an arch on each tower
+      const rc = pt(0, 0, 32.2), rx = 4.9 * se * k, ry = 4.9 * k;
+      const fr = fW(32);
+      c.fillStyle = kitCss(holeCol(32)); c.beginPath(); c.ellipse(rc[0], rc[1], rx, ry, 0, 0, TAU); c.fill();
+      c.strokeStyle = parisA(fr, 0.9); c.lineWidth = lw * 0.8;
+      c.beginPath(); c.ellipse(rc[0], rc[1], rx * 0.42, ry * 0.42, 0, 0, TAU);
+      for (let j = 0; j < 16; j++) { const a = TAU * j / 16; c.moveTo(rc[0] + rx * 0.42 * Math.cos(a), rc[1] + ry * 0.42 * Math.sin(a)); c.lineTo(rc[0] + rx * Math.cos(a), rc[1] + ry * Math.sin(a)); }
+      c.stroke();
+      c.strokeStyle = parisA(kitMix(fr, [255, 250, 240], 0.15), 0.75); c.lineWidth = lw * 1.2;
+      c.beginPath(); c.ellipse(rc[0], rc[1], rx * 1.08, ry * 1.08, 0, 0, TAU); c.stroke();
+      for (const nc of [13.4, -13.4]) {
+        for (const dn of [1.9, -1.9]) { const n = nc + dn; poly([pt(0, n + 1.1, 26), pt(0, n + 1.1, 34.5), pt(0, n, 36.4), pt(0, n - 1.1, 34.5), pt(0, n - 1.1, 26)], holeCol(30)); }
+        const a = pt(0, nc + 3.6, 34.4), b = pt(0, nc, 39), d = pt(0, nc - 3.6, 34.4);
+        c.strokeStyle = parisA(kitMix(fW(36), [255, 250, 240], 0.2), 0.8); c.lineWidth = lw;
+        c.beginPath(); c.moveTo(a[0], a[1]); c.quadraticCurveTo(a[0], b[1], b[0], b[1]); c.quadraticCurveTo(d[0], b[1], d[0], d[1]); c.stroke();
+      }
+      line(pt(0, 7, 25.6), pt(0, -7, 25.6), kitMix(fW(26), [255, 250, 240], 0.2), lw * 1.3, 0.75);
+      // the great gallery: an open arcade of slim columns across the whole front; the sky shows through it between the towers
+      course(39.8, nN, -nN);
+      const skyThru = kitMix(P.skyHor, P.hazeCol, 0.4);
+      for (let j = 0; j < 26; j++) {
+        const n = parisLr(nN - 0.8, -nN + 0.8, (j + 0.5) / 26), between = Math.abs(n) < nT - 0.4;
+        const col = between ? kitMix(skyThru, holeCol(42), 0.25) : holeCol(42);
+        poly([pt(0, n + 0.5, 40.4), pt(0, n + 0.5, 44.0), pt(0, n, 44.6), pt(0, n - 0.5, 44.0), pt(0, n - 0.5, 40.4)], col);
+      }
+      // the gallery stands back under its cornice: a band of shade along its top
+      poly([pt(0, nN, 44.2), pt(0, -nN, 44.2), pt(0, -nN, 45.3), pt(0, nN, 45.3)], parisA(shadowBlue, 0.45 * (0.4 + 0.6 * dirK)));
+      course(yG, nN, -nN);
+      // the towers' belfry bays: two tall lancets on each face (louvred, dark), with a pointed hood
+      const lancet = (P0, hwM, y0, y1, col, hood) => {
+        poly([P0(hwM, y0), P0(hwM, y1 - 1.6), P0(0, y1), P0(-hwM, y1 - 1.6), P0(-hwM, y0)], col);
+        line(P0(hwM + 0.7, y1 - 1.8), P0(0, y1 + 1.1), hood, lw * 0.9, 0.75);
+        line(P0(0, y1 + 1.1), P0(-hwM - 0.7, y1 - 1.8), hood, lw * 0.9, 0.75);
+      };
+      for (const nc of [13.25, -13.25]) for (const dn of [3.4, -3.4]) {
+        const n = nc + dn;
+        lancet((d, y) => pt(0, n + d, y), 1.35, 48.5, 64.6, holeCol(56), kitMix(fW(60), [255, 250, 240], 0.25));
+      }
+      for (const ec of [3.7, 10.3]) lancet((d, y) => pt(ec - d, -nN, y), 1.35, 48.5, 64.6, holeCol(56), kitMix(fS(60), [255, 250, 240], 0.2));
+      for (const ec of [3.7, 10.3]) lancet((d, y) => pt(ec - d, nT, y), 1.35, 48.5, 64.6, kitMix(holeCol(56), fS(58, -0.35), 0.25), kitMix(fS(60, -0.35), [255, 250, 240], 0.12));
+      // tower tops: a cornice and the open balustrade, with little pinnacles at the corners
+      for (const [na, nb] of [[nN, nT], [-nT, -nN]]) {
+        course(66.4, na, nb, 0.6);
+        c.strokeStyle = parisA(kitMix(fW(68), holeCol(68), 0.5), 0.7); c.lineWidth = lw * 0.6;
+        c.beginPath();
+        for (let j = 0; j <= 10; j++) { const n = parisLr(na, nb, j / 10), a = pt(0, n, 66.6), b = pt(0, n, 68.6); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); }
+        c.stroke();
+        for (const n of [na, nb]) poly([pt(0, n + 0.5, yT), pt(0, n, yT + 2.4), pt(0, n - 0.5, yT)], fW(70));
+      }
+      for (const e of [0, eT]) poly([pt(e, -nN + 0.5, yT), pt(e, -nN, yT + 2.4), pt(e, -nN - 0.5, yT)], fS(70));
+      line(pt(0, -nN, 66.4), pt(eT, -nN, 66.4), kitMix(fS(66), [255, 250, 240], 0.25), lw * 1.1, 0.8);
+      // the four buttresses of the front stand out of the wall: a front face and a side face, each in its own light, set back at each
+      // storey (2 m deep up to the gallery of kings, 1.3 m to the great gallery, 0.7 m up the towers); the galleries run across them
+      for (const n of [nN - 1.2, nT + 1.2, -nT - 1.2, -nN + 1.2]) {
+        const n0 = n + 1.2, n1 = n - 1.2;
+        for (const [ya, yb, dp] of [[0, 20.2, 2.8], [24.2, 39.8, 2.0], [yG, yT - 2.6, 1.3]]) {
+          const ym = 0.5 * (ya + yb);
+          poly([pt(-dp, n1, ya), pt(-dp, n1, yb), pt(0, n1, yb), pt(0, n1, ya)], fS(ym, -0.1));
+          poly([pt(-dp, n0, ya), pt(-dp, n0, yb), pt(-dp, n1, yb), pt(-dp, n1, ya)], fW(ym, 0.04));
+          line(pt(-dp, n0, yb), pt(-dp, n1, yb), kitMix(fW(yb), P.skyHor, 0.3), lw * 0.9, 0.5);
+        }
+      }
+    }
+
+    c.restore();
+  }
+
   // Cached scene geometry & deterministic layout per (w, h).
   const parisLayCache = new Map();
   function parisLay(w, h) {
@@ -21507,61 +22393,43 @@ window.LISEUSE_SCENES = (() => {
     if (parisLayCache.has(key)) return parisLayCache.get(key);
     const u = Math.min(w, h), hz = h * 0.500;
 
-    // Eiffel Tower position & proportions (in the left-center distance, rising above the distant rooftops)
-    const eif = {
-      cx: w * 0.285,
-      baseY: hz + h * 0.008,
-      topY: h * 0.182,
-      h: (hz + h * 0.008) - h * 0.182,
-      wBase: w * 0.072,
+    // The Eiffel Tower as a model in metres (base 125 m square, platforms at 57.6, 115.7 and 276 m, antenna tip at 330 m),
+    // turned by `al` so that both the front face and the right-hand face of each pillar show, with a weak perspective about its axis.
+    // P(x, y, z): metres (x right, y up, z away from us) -> screen; dep(x, z): depth along the line of sight (+ = farther).
+    const eif = { cx: w * 0.285, baseY: hz - h * 0.006, topY: h * 0.168 };
+    eif.h = eif.baseY - eif.topY;
+    eif.k = eif.h / 330;
+    eif.al = 0.22; eif.ca = Math.cos(eif.al); eif.sa = Math.sin(eif.al);
+    eif.Dt = 1300; // the tower's distance in metres, for the slight convergence of its far side
+    eif.hzY = hz;
+    eif.o = (y) => parisEifProf(PARIS_EIF_OUT, y);
+    eif.i = (y) => (y <= 115.7 ? parisEifProf(PARIS_EIF_IN, y) : eif.o(y) * 0.64);
+    eif.dep = (x, z) => -x * eif.sa + z * eif.ca;
+    eif.P = (x, y, z) => {
+      const s = eif.Dt / (eif.Dt + eif.dep(x, z));
+      return [eif.cx + eif.k * (x * eif.ca + z * eif.sa) * s, eif.hzY - (eif.hzY - (eif.baseY - eif.k * y)) * s];
     };
-    eif.y1 = eif.baseY - eif.h * 0.238; // 1st platform (arcade gallery)
-    eif.y2 = eif.baseY - eif.h * 0.478; // 2nd platform (double deck)
-    eif.y3 = eif.baseY - eif.h * 0.844; // 3rd platform (summit observation deck)
-    eif.lampY = eif.baseY - eif.h * 0.906; // rotating beacon origin inside lantern cupola
-    // Concave exponential outer half-width & inner leg half-width as a function of normalized height s in [0, 1]
+    // Projected half-width of the outline at normalized height s (kept monotone: the sky's outline uses it)
     eif.wOut = (s) => {
-      const wb = eif.wBase;
-      if (s <= 0.238) {
-        const u0 = s / 0.238;
-        return wb * parisLr(0.500, 0.296, Math.pow(u0, 0.86));
-      }
-      if (s <= 0.478) {
-        const u1 = (s - 0.238) / 0.240;
-        return wb * parisLr(0.272, 0.156, Math.pow(u1, 0.88));
-      }
-      if (s <= 0.844) {
-        const u2 = (s - 0.478) / 0.366;
-        return wb * (0.044 + 0.090 * Math.pow(1 - u2, 1.68));
-      }
-      if (s <= 0.904) {
-        const u3 = (s - 0.844) / 0.060;
-        return wb * parisLr(0.044, 0.018, Math.pow(u3, 1.25));
-      }
-      return wb * Math.max(0.002, 0.014 * Math.pow(Math.max(0, 1 - (s - 0.904) / 0.096), 1.6));
+      const y = s * 330;
+      const m = y <= 276 ? eif.o(y) : y <= 292 ? parisLr(5.0, 2.4, (y - 276) / 16) : y <= 299 ? parisLr(2.4, 1.2, (y - 292) / 7) : parisLr(0.9, 0.25, (y - 299) / 31);
+      return m * (eif.ca + eif.sa) * eif.k;
     };
-    eif.wIn = (s) => {
-      const wb = eif.wBase;
-      if (s < 0.224) {
-        const u0 = s / 0.224;
-        return wb * parisLr(0.342, 0.174, Math.pow(u0, 0.90));
-      }
-      if (s >= 0.256 && s < 0.456) {
-        const u1 = (s - 0.256) / 0.200;
-        return wb * parisLr(0.156, 0.016, Math.pow(u1, 0.92));
-      }
-      return 0;
-    };
-    // Pre-seeded sparkle glint positions for the hourly night scintillement in fx
-    eif.glints = Array.from({ length: 52 }, (_, i) => {
-      const s = 0.05 + 0.84 * Math.pow(parisHash(i, 401), 1.04);
-      const o = eif.wOut(s), inn = eif.wIn(s);
-      const side = parisHash(i, 402) < 0.5 ? -1 : 1;
-      const f = parisHash(i, 403);
-      const xOff = inn > 0.5 ? parisLr(inn + 0.8, o - 0.8, f) : f * (o - 0.6);
+    eif.wIn = (s) => { const y = s * 330; return y <= 115.7 ? eif.i(y) * (eif.ca - eif.sa) * eif.k : 0; };
+    eif.wBase = 2 * eif.wOut(0);
+    eif.y1 = eif.baseY - eif.k * 57.6; // 1st platform
+    eif.y2 = eif.baseY - eif.k * 115.7; // 2nd platform
+    eif.y3 = eif.baseY - eif.k * 276; // 3rd platform
+    eif.lampY = eif.baseY - eif.k * 292.2; // the beacon inside the lantern
+    // Pre-seeded sparkle glint positions for the hourly night scintillement in fx, on the faces we see (front faces and right-hand faces)
+    eif.glints = Array.from({ length: 56 }, (_, i) => {
+      const y = 5 + 268 * Math.pow(parisHash(i, 401), 1.12);
+      const o = eif.o(y), inn = eif.i(y), side = parisHash(i, 402) < 0.5 ? -1 : 1, f = parisHash(i, 403);
+      const across = y > 115.7 ? side * f * o : side * parisLr(inn, o, f);
+      const onFront = parisHash(i, 407) < 0.74;
+      const [x, yy] = onFront ? eif.P(across, y, -o) : eif.P(o, y, across);
       return {
-        x: eif.cx + side * xOff,
-        y: eif.baseY - eif.h * s,
+        x, y: yy,
         r: (0.85 + 0.95 * parisHash(i, 404)) * (u / 900),
         sp: 10.5 + 16.0 * parisHash(i, 405),
         ph: parisHash(i, 406) * TAU,
@@ -21633,6 +22501,7 @@ window.LISEUSE_SCENES = (() => {
       { x: w * 0.82,  w: w * 0.08, y: hz - h * 0.016, h: h * 0.054, d: 0.81, roofH: h * 0.015, ch: 2 },
       { x: w * 0.89,  w: w * 0.13, y: hz - h * 0.042, h: h * 0.078, d: 0.76, roofH: h * 0.023, ch: 4 },
     ];
+    for (const B of farBlocks) if (B.church) B.nd = parisNDGeom(B, w, h, hz);
     const farWins = [];
     for (const B of farBlocks) {
       const cols = Math.max(3, Math.round(B.w / (w * 0.022)));
@@ -22029,6 +22898,11 @@ window.LISEUSE_SCENES = (() => {
       let y = hz;
       for (const B of farBlocks) {
         if (x >= B.x && x <= B.x + B.w) {
+          if (B.church) { // Notre-Dame's outline (parisNDTop), low houses around it
+            const t = parisNDTop(B.nd, x);
+            y = Math.min(y, B.nd.Yg - B.nd.k * Math.max(11, t));
+            continue;
+          }
           y = Math.min(y, B.y - B.roofH);
           if (B.dome) {
             const dcx = B.x + B.w * 0.52, dr = B.w * 0.20;
@@ -22036,18 +22910,6 @@ window.LISEUSE_SCENES = (() => {
               const u0 = 1 - Math.pow((x - dcx) / dr, 2);
               y = Math.min(y, B.y - B.roofH * (0.65 + 2.15 * Math.sqrt(Math.max(0, u0))));
             }
-          }
-          if (B.church) {    // the same geometry as the church painter in parisDraw: twin towers, spirelets, body, flèche
-            const tcx = B.x + B.w * 0.48, tby = B.y - B.roofH * 0.5, tw = B.w * 0.115, th = B.roofH * 2.15;
-            const tri = (x0, x1, yBase, apexX, apexY) => x < x0 || x > x1 ? hz
-              : yBase - (yBase - apexY) * (x <= apexX ? (x - x0) / Math.max(1e-6, apexX - x0) : (x1 - x) / Math.max(1e-6, x1 - apexX));
-            for (const sg of [-1, 1]) {
-              const tx = tcx + sg * tw * 1.02 - tw * 0.5;
-              if (x >= tx && x <= tx + tw) y = Math.min(y, tby - th);
-              y = Math.min(y, tri(tx - tw * 0.06, tx + tw * 1.06, tby - th, tx + tw * 0.5, tby - th * 1.68));
-            }
-            if (Math.abs(x - tcx) <= tw * 1.02) y = Math.min(y, tby - th * 0.62);
-            y = Math.min(y, tri(tcx - tw * 0.22, tcx + tw * 0.22, tby - th * 0.62, tcx, tby - th * 2.05));
           }
         }
       }
@@ -22260,541 +23122,315 @@ window.LISEUSE_SCENES = (() => {
   }
 
   function parisEiffelPaint(c, L, P, D, litOn, bOn, spk) {
-    const E = L.eif, cx = E.cx, by = E.baseY, H = E.h, wb = E.wBase, u = L.u;
-    const dir = P.rig.dir || -1;
-    const wet = P.wet || 0, storm = P.storm || 0, ov = P.ov || 0;
-    const goldK = parisCl(litOn * parisSm(0.22, 0.65, P.night), 0, 1);
+    const E = L.eif, u = L.u, k = E.k, Pj = E.P, rig = P.rig;
+    const wet = P.wet || 0, storm = P.storm || 0, ov = P.ov || 0, night = P.night;
+    const goldK = parisCl(litOn * parisSm(0.22, 0.65, night), 0, 1);
+    const sunSide = rig.dir < 0 ? -1 : 1, dirK = parisCl(Math.abs(rig.dir) / 0.55, 0, 1) * (rig.dk == null ? 1 : rig.dk);
+    const warmRimK = parisCl((P.gold + P.dusk * 0.85 + (P.morn || 0) * 0.7) * (1 - wet * 0.75), 0, 1);
+    const hazeA = kitMix(P.hazeCol, P.skyHor, 0.40);
+    const bronze = [124, 93, 68];
+    const goldHi = [255, 222, 146], goldMid = [246, 182, 92], goldLo = [190, 124, 54];
 
-    // Authentic Eiffel bronze-brown ("brun Tour Eiffel") softened by distance haze so day contrast stays low and atmospheric
-    const hzMix = parisCl(0.42 + 0.16 * wet + 0.12 * storm + 0.08 * ov - 0.26 * P.night, 0.16, 0.68);
-    const distHaze = kitMix(P.hazeCol, P.skyHor, 0.42);
-    const bronzeLit = kitMix([134, 111, 92], P.eifLit, 0.36);
-    const bronzeMid = [104, 87, 73];
-    const bronzeShd = kitMix([76, 66, 58], P.eifShd, 0.40);
+    // Tone of a face whose outward normal is (nx, nz) in the tower's frame: lit by the scene's sun side, hazed by distance (more at
+    // the foot, where the air is thicker), the inside of the far faces in the tower's own shade; golden sodium light at night.
+    const faceCol = (nx, nz, y, back) => {
+      const vx = nx * E.ca + nz * E.sa, vd = -nx * E.sa + nz * E.ca;
+      let ex = vx * sunSide * 1.12 * dirK - vd * 0.12 - 0.05;
+      if (ex < 0 && sunSide < 0) ex *= 0.5; // the sun stands to the right of the tower in the sky then: keep its shaded side light
+      if (back) ex = ex * 0.3 - 0.42;
+      let col = parisLit(rig, bronze, parisCl(ex, -1, 1), 0.40);
+      if (ex > 0 && warmRimK > 0.01) col = kitMix(col, [244, 172, 108], 0.42 * warmRimK * ex);
+      const hzK = parisCl(0.27 + 0.08 * warmRimK + 0.18 * wet + 0.10 * storm + 0.06 * ov - 0.16 * night + 0.17 * Math.pow(1 - parisCl(y / 300, 0, 1), 1.6) + (back ? 0.07 : 0), 0.10, 0.80);
+      col = kitMix(col, hazeA, hzK);
+      if (goldK > 0.01) {
+        const gc = back ? goldLo : kitMix(goldMid, goldHi, parisCl(0.25 + 0.5 * ex, 0, 1));
+        col = kitMix(col, gc, (back ? 0.72 : 0.88) * goldK);
+      }
+      return col;
+    };
+    const darker = (col, a) => kitMix(col, [34, 26, 22], a * (1 - goldK));
+    const brighter = (col, a) => kitMix(col, goldK > 0.3 ? [255, 236, 180] : kitMix(col, [255, 246, 228], 0.6), a);
+    const lwLat = Math.max(0.32, k * 0.40), lwSub = Math.max(0.26, k * 0.26);
+    const lwChord = (y) => Math.max(0.42, k * (1.05 - 0.55 * parisCl(y / 276, 0, 1)));
+    const seg = (y0, y1, step) => Math.max(2, Math.ceil((y1 - y0) / step));
 
-    // Warm golden-hour / dusk / dawn amber-peach rim light on the sun-facing edge of every leg and platform
-    const warmRimK = parisCl((P.gold + P.dusk * 0.85 + (P.morn || 0) * 0.70) * (1 - wet * 0.75), 0, 1);
-    const dayLit = kitMix(kitMix(bronzeLit, [238, 166, 104], 0.62 * warmRimK), distHaze, hzMix * (0.82 - 0.24 * warmRimK));
-    const dayMid = kitMix(bronzeMid, distHaze, hzMix);
-    const dayShd = kitMix(bronzeShd, distHaze, hzMix * 1.05);
-    const dayBack = kitMix([90, 76, 66], distHaze, parisCl(hzMix + 0.16, 0.36, 0.80));
+    // One lattice face between two edges A(y), B(y) (each giving [x, z] in metres), from y0 to y1: a light translucent web, the
+    // St Andrew crosses (bays about as tall as the face is wide, with a finer cross inside the big bays), and the two edge chords.
+    const face = (A, B, y0, y1, nx, nz, o = {}) => {
+      const vd = -nx * E.sa + nz * E.ca, back = vd > 0.02;
+      const col = faceCol(nx, nz, 0.5 * (y0 + y1), back);
+      const pA = (y) => { const q = A(y); return Pj(q[0], y, q[1]); }, pB = (y) => { const q = B(y); return Pj(q[0], y, q[1]); };
+      const n = seg(y0, y1, 8);
+      const web = (o.web != null ? o.web : 0.36) * (back ? 0.55 : 1) * (1 - 0.35 * goldK);
+      c.fillStyle = parisA(col, web);
+      c.beginPath();
+      for (let j = 0; j <= n; j++) { const p = pA(parisLr(y0, y1, j / n)); if (j) c.lineTo(p[0], p[1]); else c.moveTo(p[0], p[1]); }
+      for (let j = n; j >= 0; j--) { const p = pB(parisLr(y0, y1, j / n)); c.lineTo(p[0], p[1]); }
+      c.closePath();
+      c.fill();
+      // bays
+      const ys = [y0];
+      for (let y = y0; y < y1 - 0.5;) {
+        const a = A(y), b = B(y), wM = Math.hypot(a[0] - b[0], a[1] - b[1]);
+        y = Math.min(y1, y + parisCl(wM * (o.bay || 0.78), o.minBay || 2.6, 26));
+        if (y1 - y < 1.2) y = y1;
+        ys.push(y);
+      }
+      const latCol = goldK > 0.3 ? brighter(col, 0.35) : darker(col, 0.22);
+      c.strokeStyle = parisA(latCol, (back ? 0.50 : 0.82) * (o.latA || 1));
+      c.lineWidth = lwLat;
+      c.beginPath();
+      for (let j = 0; j < ys.length - 1; j++) {
+        const a0 = pA(ys[j]), b0 = pB(ys[j]), a1 = pA(ys[j + 1]), b1 = pB(ys[j + 1]);
+        c.moveTo(a0[0], a0[1]); c.lineTo(b1[0], b1[1]);
+        c.moveTo(b0[0], b0[1]); c.lineTo(a1[0], a1[1]);
+        c.moveTo(a0[0], a0[1]); c.lineTo(b0[0], b0[1]);
+      }
+      c.stroke();
+      if (!back && o.sub !== false) {
+        c.strokeStyle = parisA(latCol, 0.40 * (o.latA || 1));
+        c.lineWidth = lwSub;
+        c.beginPath();
+        for (let j = 0; j < ys.length - 1; j++) {
+          const a0 = pA(ys[j]), b0 = pB(ys[j]), a1 = pA(ys[j + 1]), b1 = pB(ys[j + 1]);
+          if (Math.abs(a1[1] - a0[1]) < 7) continue;
+          const ym = 0.5 * (ys[j] + ys[j + 1]), am = pA(ym), bm = pB(ym);
+          const m0 = [0.5 * (a0[0] + b0[0]), 0.5 * (a0[1] + b0[1])], m1 = [0.5 * (a1[0] + b1[0]), 0.5 * (a1[1] + b1[1])];
+          c.moveTo(m0[0], m0[1]); c.lineTo(am[0], am[1]); c.lineTo(m1[0], m1[1]); c.lineTo(bm[0], bm[1]); c.closePath();
+          c.moveTo(am[0], am[1]); c.lineTo(bm[0], bm[1]);
+        }
+        c.stroke();
+      }
+      // chords
+      if (o.chords !== false) {
+        c.strokeStyle = parisA(goldK > 0.3 ? kitMix(col, goldHi, 0.25) : darker(col, 0.30), back ? 0.55 : 0.94);
+        for (const pe of [pA, pB]) {
+          c.lineWidth = lwChord(0.5 * (y0 + y1)) * (back ? 0.75 : 1);
+          c.beginPath();
+          for (let j = 0; j <= n; j++) { const p = pe(parisLr(y0, y1, j / n)); if (j) c.lineTo(p[0], p[1]); else c.moveTo(p[0], p[1]); }
+          c.stroke();
+        }
+      }
+    };
 
-    // At night, outer chords stay dark bronze-amber while internal lattice trusses, inner chords, and platforms glow golden sodium
-    const nightFrame = kitMix([68, 48, 32], [148, 98, 44], 0.48);
-    const nightGoldBright = [255, 224, 146];
-    const nightGoldMid = [244, 182, 86];
-    const nightGoldDeep = [188, 124, 52];
+    // A pillar (corner sx, sz = ±1) from y0 to y1: a square box girder x in sx[i, o], z in sz[i, o]; its far faces first.
+    const pillar = (sx, sz, y0, y1, o = {}) => {
+      const I = E.i, O = E.o;
+      const faces = [
+        [(y) => [sx * O(y), sz * I(y)], (y) => [sx * O(y), sz * O(y)], sx, 0],
+        [(y) => [sx * I(y), sz * I(y)], (y) => [sx * I(y), sz * O(y)], -sx, 0],
+        [(y) => [sx * I(y), sz * O(y)], (y) => [sx * O(y), sz * O(y)], 0, sz],
+        [(y) => [sx * I(y), sz * I(y)], (y) => [sx * O(y), sz * I(y)], 0, -sz],
+      ];
+      faces.sort((f1, f2) => (-f2[2] * E.sa + f2[3] * E.ca) - (-f1[2] * E.sa + f1[3] * E.ca));
+      for (const f of faces) face(f[0], f[1], y0, y1, f[2], f[3], o);
+    };
 
-    const colRim = kitMix(dayLit, nightGoldBright, 0.88 * goldK);
-    const colMain = kitMix(dayMid, nightGoldMid, 0.84 * goldK);
-    const colShade = kitMix(dayShd, nightFrame, 0.82 * goldK);
-    const colBack = kitMix(dayBack, nightGoldDeep, 0.68 * goldK);
-    const skyVeil = kitMix(P.skyHor, P.hazeCol, 0.55);
+    // The big decorative arch in the plane of one side (normal nx, nz), springing from the pillars' inner edges at 15 m, its crown
+    // under the 1st-floor frieze: a curved box girder (intrados, extrados, radial and zigzag lattice).
+    const arch = (nx, nz) => {
+      const vd = -nx * E.sa + nz * E.ca, back = vd > 0.02;
+      const col = faceCol(nx, nz, 35, back);
+      const ys = 15, A0 = E.i(ys), Bi = 34.5, Bo = 38.2;
+      const at = (r, th, bump) => {
+        const y = ys + (Bi + (Bo - Bi) * r) * Math.sin(th), lim = E.i(y) + 0.6;
+        const a = parisCl((A0 + 3.2 * r) * Math.cos(th), -lim, lim);
+        const off = E.o(y) + bump;
+        return nx !== 0 ? Pj(nx * off, y, -a * nx) : Pj(a * nz, y, nz * off);
+      };
+      const N = 26, rimA = back ? 0.50 : 0.92;
+      c.fillStyle = parisA(col, (back ? 0.16 : 0.30) * (1 - 0.3 * goldK));
+      c.beginPath();
+      for (let j = 0; j <= N; j++) { const p = at(1, Math.PI * j / N, 0); if (j) c.lineTo(p[0], p[1]); else c.moveTo(p[0], p[1]); }
+      for (let j = N; j >= 0; j--) { const p = at(0, Math.PI * j / N, 0); c.lineTo(p[0], p[1]); }
+      c.closePath();
+      c.fill();
+      const latCol = goldK > 0.3 ? brighter(col, 0.3) : darker(col, 0.20);
+      c.strokeStyle = parisA(latCol, back ? 0.45 : 0.78);
+      c.lineWidth = lwSub * 1.1;
+      c.beginPath();
+      for (let j = 0; j < N; j++) {
+        const t0 = Math.PI * j / N, t1 = Math.PI * (j + 1) / N, i0 = at(0, t0, 0), o0 = at(1, t0, 0), i1 = at(0, t1, 0);
+        c.moveTo(i0[0], i0[1]); c.lineTo(o0[0], o0[1]); c.lineTo(i1[0], i1[1]);
+      }
+      c.stroke();
+      c.strokeStyle = parisA(goldK > 0.3 ? kitMix(col, goldHi, 0.3) : darker(col, 0.28), rimA);
+      c.lineWidth = lwChord(30) * (back ? 0.75 : 1.15);
+      for (const r of [0, 1]) {
+        c.beginPath();
+        for (let j = 0; j <= N; j++) { const p = at(r, Math.PI * j / N, 0); if (j) c.lineTo(p[0], p[1]); else c.moveTo(p[0], p[1]); }
+        c.stroke();
+      }
+    };
 
-    const wOut = E.wOut, wIn = E.wIn, yAt = (s) => by - H * s;
+    // The central web of the upper pylon on one side (between the corner girders), with its big X bracing.
+    const pylonPanel = (nx, nz, y0, y1) => {
+      const I = E.i, O = E.o;
+      const A = nx !== 0 ? (y) => [nx * O(y), -I(y) * nx] : (y) => [-I(y) * nz, nz * O(y)];
+      const B = nx !== 0 ? (y) => [nx * O(y), I(y) * nx] : (y) => [I(y) * nz, nz * O(y)];
+      face(A, B, y0, y1, nx, nz, { web: 0.20, bay: 1.05, minBay: 4, chords: false, latA: 0.9 });
+    };
+
+    // A platform band: a box of half-size hw from ya to yb; far faces (`far` true) or near faces (front and right).
+    const band = (hw, ya, yb, far, o = {}) => {
+      const sides = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+      for (const [nx, nz] of sides) {
+        const vd = -nx * E.sa + nz * E.ca, back = vd > 0.02;
+        if (back !== far) continue;
+        const col = faceCol(nx, nz, 0.5 * (ya + yb), false);
+        const cor = (t, y) => (nx !== 0 ? Pj(nx * hw, y, parisLr(-hw, hw, t) * nx) : Pj(parisLr(-hw, hw, t) * -nz, y, nz * hw));
+        const q = [cor(0, ya), cor(1, ya), cor(1, yb), cor(0, yb)];
+        c.fillStyle = parisA(back ? kitMix(col, hazeA, 0.25) : col, back ? 0.55 : (o.alpha || 0.96));
+        c.beginPath(); c.moveTo(q[0][0], q[0][1]); for (let j = 1; j < 4; j++) c.lineTo(q[j][0], q[j][1]); c.closePath(); c.fill();
+        if (back) continue;
+        if (o.deco) o.deco(cor, col, nx, nz);
+        // lit top edge and a shadow line under the band
+        c.strokeStyle = parisA(brighter(col, 0.35), 0.75);
+        c.lineWidth = Math.max(0.35, k * 0.42);
+        c.beginPath(); c.moveTo(q[3][0], q[3][1]); c.lineTo(q[2][0], q[2][1]); c.stroke();
+        c.strokeStyle = parisA(darker(col, 0.55), 0.70);
+        c.beginPath(); c.moveTo(q[0][0], q[0][1] + 0.3); c.lineTo(q[1][0], q[1][1] + 0.3); c.stroke();
+      }
+    };
+    // Windows / arcade along a near face of a band: n openings between heights ya..yb (fractions along the face)
+    const glazing = (cor, n, ya, yb, col, kind) => {
+      const lit = goldK > 0.05;
+      const sky = kitMix(P.skyHor, P.hazeCol, 0.5);
+      c.fillStyle = lit ? parisA(goldHi, 0.55 + 0.4 * goldK) : parisA(kind === 'arch' ? kitMix(sky, col, 0.45) : kitMix(darker(col, 0.5), sky, 0.35), 0.85);
+      for (let j = 0; j < n; j++) {
+        const t0 = (j + 0.2) / n, t1 = (j + 0.8) / n;
+        const a = cor(t0, ya), b = cor(t1, ya), d1 = cor(t1, yb), d0 = cor(t0, yb);
+        c.beginPath();
+        c.moveTo(a[0], a[1]);
+        if (kind === 'arch') {
+          const mx = 0.5 * (d0[0] + d1[0]), my = 0.5 * (d0[1] + d1[1]), r = Math.abs(d1[0] - d0[0]) * 0.5;
+          c.lineTo(d0[0], d0[1] + r); c.quadraticCurveTo(d0[0], my - r * 0.2, mx, my - r * 0.25); c.quadraticCurveTo(d1[0], my - r * 0.2, d1[0], d1[1] + r);
+          c.lineTo(b[0], b[1]);
+        } else {
+          c.lineTo(d0[0], d0[1]); c.lineTo(d1[0], d1[1]); c.lineTo(b[0], b[1]);
+        }
+        c.closePath();
+        c.fill();
+      }
+    };
 
     c.save();
     c.lineCap = 'butt';
-    c.lineJoin = 'miter';
+    c.lineJoin = 'round';
 
-    // Helper: draw a single tapered lattice leg (from sBot to sTop) with open web, double edge girders (arêtiers doubles), horizontal struts, and multi-scale St. Andrew X-bracing
-    const drawLatticeLeg = (edgeOuterAt, edgeInnerAt, sBot, sTop, bays, isBack, sideSign) => {
-      const alphaMul = isBack ? (0.60 - 0.08 * goldK) : 1.0;
-      // Keep interior web very open so sky/haze (and dark night sky) shows cleanly between lattice trusses
-      const webAlpha = isBack
-        ? (0.09 * (1 - 0.55 * goldK))
-        : (0.14 * (1 - 0.65 * goldK) + 0.05 * goldK);
-      const baseCol = isBack ? colBack : colMain;
-      const sunOnLeft = dir < 0;
+    // 1. Far faces of the platforms, the far arches and pylon webs, then the far pillars
+    band(35.5, 50.5, 57.6, true); band(33.5, 57.6, 63.0, true);
+    band(20.6, 111.8, 116.4, true); band(18.4, 116.4, 121.0, true);
+    band(6.6, 274.5, 279.2, true);
+    arch(0, 1); arch(-1, 0);
+    pylonPanel(0, 1, 116.4, 266); pylonPanel(-1, 0, 116.4, 266);
+    const tiers = [[0, 57.6, {}], [57.6, 115.7, {}], [115.7, 266, { bay: 0.95, minBay: 3.2 }]];
+    for (const [sx, sz] of [[-1, 1], [1, 1]]) for (const t of tiers) pillar(sx, sz, t[0], t[1], t[2]);
+    // 2. The right-hand arch and web (behind the front-right pillar's side), then the near pillars, the front web and arch
+    arch(1, 0);
+    pylonPanel(1, 0, 116.4, 266);
+    pylonPanel(0, -1, 116.4, 266);
+    for (const [sx, sz] of [[-1, -1], [1, -1]]) for (const t of tiers) pillar(sx, sz, t[0], t[1], t[2]);
+    arch(0, -1);
 
-      c.fillStyle = parisA(isBack ? colBack : (goldK > 0.35 ? nightFrame : dayShd), webAlpha);
+    // Day: the light catches the outer edge of the tower on the sun's side (a thin warm rim up the pillars and the pylon)
+    const rimK = dirK * (1 - goldK) * (1 - 0.75 * ov) * (1 - 0.8 * night);
+    if (rimK > 0.04) {
+      const rimCol = kitMix(faceCol(sunSide, 0, 120, false), warmRimK > 0.05 ? [255, 214, 160] : [255, 248, 234], 0.45);
+      c.strokeStyle = parisA(rimCol, 0.55 * rimK);
+      c.lineWidth = Math.max(0.4, k * 0.55);
       c.beginPath();
-      const segs = 12;
-      for (let i = 0; i <= segs; i++) {
-        const s = parisLr(sBot, sTop, i / segs);
-        const x = edgeOuterAt(s);
-        if (i === 0) c.moveTo(x, yAt(s)); else c.lineTo(x, yAt(s));
-      }
-      for (let i = segs; i >= 0; i--) {
-        const s = parisLr(sBot, sTop, i / segs);
-        c.lineTo(edgeInnerAt(s), yAt(s));
-      }
-      c.closePath();
-      c.fill();
-
-      // Subtle internal upward floodlight wash near the base of each tier at night (leaves lattice openings dark and legible)
-      if (goldK > 0.04 && !isBack) {
-        const gY0 = yAt(sTop), gY1 = yAt(sBot);
-        c.fillStyle = lin(c, 0, gY0, 0, gY1, [
-          [0, parisA(nightGoldMid, 0.03 * goldK)],
-          [0.65, parisA(nightGoldMid, 0.09 * goldK)],
-          [1, parisA(nightGoldBright, 0.18 * goldK)],
-        ]);
-        c.fill();
-      }
-
-      // Multi-scale diagonal X-bracing + horizontal purlins + central K-truss ties across each bay
-      const lwDiag = Math.max(0.55, u * (isBack ? 0.00056 : 0.00072));
-      const lwSub = Math.max(0.42, u * 0.00046);
-      for (let b = 0; b < bays; b++) {
-        const s0 = parisLr(sBot, sTop, b / bays);
-        const s1 = parisLr(sBot, sTop, (b + 1) / bays);
-        const sm = 0.5 * (s0 + s1);
-        const y0 = yAt(s0), y1 = yAt(s1), ym = yAt(sm);
-        const ox0 = edgeOuterAt(s0), ox1 = edgeOuterAt(s1), oxm = edgeOuterAt(sm);
-        const ix0 = edgeInnerAt(s0), ix1 = edgeInnerAt(s1), ixm = edgeInnerAt(sm);
-        const mx0 = 0.5 * (ox0 + ix0), mx1 = 0.5 * (ox1 + ix1), mxm = 0.5 * (oxm + ixm);
-
-        // Primary St. Andrew X-brace + horizontal diaphragm strut
-        c.strokeStyle = parisA(goldK > 0.25 && !isBack ? colRim : baseCol, (0.74 + 0.20 * goldK) * alphaMul);
-        c.lineWidth = lwDiag;
-        c.beginPath();
-        c.moveTo(ox0, y0); c.lineTo(ix1, y1);
-        c.moveTo(ix0, y0); c.lineTo(ox1, y1);
-        c.moveTo(ox0, y0); c.lineTo(ix0, y0);
-        c.stroke();
-
-        // Secondary finer sub-lattice (mid-bay horizontal + diamond trellising) on front legs
-        if (!isBack) {
-          c.strokeStyle = parisA(goldK > 0.25 ? colMain : dayShd, (0.46 + 0.22 * goldK) * alphaMul);
-          c.lineWidth = lwSub;
-          c.beginPath();
-          c.moveTo(oxm, ym); c.lineTo(ixm, ym);
-          c.moveTo(mx0, y0); c.lineTo(mx1, y1);
-          c.moveTo(mx0, y0); c.lineTo(oxm, ym); c.lineTo(mx1, y1); c.lineTo(ixm, ym); c.closePath();
-          c.stroke();
-        }
-      }
-
-      // Double edge girders (arêtiers doubles: outer chord + parallel inner flange chord 15% inward)
-      const drawDoubleChord = (isOuterEdge) => {
-        const tA = isOuterEdge ? 0.0 : 1.0;
-        const tB = isOuterEdge ? 0.15 : 0.85;
-        const edgeLeftOfLeg = (sideSign < 0) ? isOuterEdge : !isOuterEdge;
-        const isSunEdge = (sunOnLeft && edgeLeftOfLeg) || (!sunOnLeft && !edgeLeftOfLeg);
-        const chordCol = isBack
-          ? colBack
-          : (goldK > 0.35
-              ? (isOuterEdge ? colShade : colRim)
-              : (isSunEdge ? colRim : colShade));
-
-        c.strokeStyle = parisA(chordCol, (0.90 + 0.08 * goldK) * alphaMul);
-        c.lineWidth = Math.max(0.84, u * (isBack ? 0.00074 : 0.00104));
-        c.beginPath();
-        for (let i = 0; i <= segs; i++) {
-          const s = parisLr(sBot, sTop, i / segs);
-          const x = parisLr(edgeOuterAt(s), edgeInnerAt(s), tA);
-          if (i === 0) c.moveTo(x, yAt(s)); else c.lineTo(x, yAt(s));
-        }
-        c.stroke();
-
-        if (!isBack) {
-          c.strokeStyle = parisA(goldK > 0.35 ? colMain : dayMid, (0.66 + 0.14 * goldK) * alphaMul);
-          c.lineWidth = Math.max(0.52, u * 0.00060);
-          c.beginPath();
-          for (let i = 0; i <= segs; i++) {
-            const s = parisLr(sBot, sTop, i / segs);
-            const x = parisLr(edgeOuterAt(s), edgeInnerAt(s), tB);
-            if (i === 0) c.moveTo(x, yAt(s)); else c.lineTo(x, yAt(s));
-          }
-          c.stroke();
-        }
-      };
-      drawDoubleChord(true);
-      drawDoubleChord(false);
-    };
-
-    // 1. 4 Legs in 3D Perspective: back pair of legs clearly visible inside the central gap (paler/hazed), followed by front pair of legs
-    const drawTierLegs = (sBot, sTop, bays) => {
-      // Back-left leg: shifted inward into the left side of the central opening (3D oblique perspective)
-      drawLatticeLeg(
-        (s) => { const o = wOut(s), i = wIn(s), lw = o - i; return cx - i - lw * 0.12; },
-        (s) => { const o = wOut(s), i = wIn(s), lw = o - i; return cx - i + lw * 0.56; },
-        sBot, sTop, Math.max(5, bays - 1), true, -1
-      );
-      // Back-right leg: shifted inward into the right side of the central opening
-      drawLatticeLeg(
-        (s) => { const o = wOut(s), i = wIn(s), lw = o - i; return cx + i + lw * 0.10; },
-        (s) => { const o = wOut(s), i = wIn(s), lw = o - i; return cx + i - lw * 0.46; },
-        sBot, sTop, Math.max(5, bays - 1), true, 1
-      );
-      // Front-left leg
-      drawLatticeLeg((s) => cx - wOut(s), (s) => cx - wIn(s), sBot, sTop, bays, false, -1);
-      // Front-right leg
-      drawLatticeLeg((s) => cx + wOut(s), (s) => cx + wIn(s), sBot, sTop, bays, false, 1);
-    };
-
-    // Lower tier (base to 1st platform: s = 0.00 .. 0.228) — 4 legs in perspective
-    drawTierLegs(0.00, 0.228, 9);
-
-    // 2. Iconic semi-circular decorative base arch + radial box-girder lattice + triangular spandrels (écoinçons) strictly bounded by the inner leg chords
-    {
-      const sSpring = 0.018, sCrownI = 0.180, sCrownO = 0.202, sUnder1 = 0.226;
-      const ySpring = yAt(sSpring), yUnder1 = yAt(sUnder1);
-      const rInX = wIn(sSpring) * 0.98, rOutX = rInX + wb * 0.032;
-      const rInY = ySpring - yAt(sCrownI), rOutY = ySpring - yAt(sCrownO);
-
-      const archPt = (rx, ry, th) => {
-        const rawY = ySpring - ry * Math.sin(th);
-        const sRow = parisCl((by - rawY) / H, 0, sUnder1);
-        const maxX = wIn(sRow) + wb * 0.008;
-        const rawDx = rx * Math.cos(th);
-        return [cx + parisCl(rawDx, -maxX, maxX), rawY];
-      };
-
-      // Subtle translucent arch ring web
-      c.fillStyle = parisA(goldK > 0.3 ? nightGoldMid : dayShd, 0.16 + 0.08 * goldK);
-      c.beginPath();
-      const aSteps = 24;
-      for (let i = 0; i <= aSteps; i++) {
-        const [ax, ay] = archPt(rOutX, rOutY, (i / aSteps) * Math.PI);
-        if (i === 0) c.moveTo(ax, ay); else c.lineTo(ax, ay);
-      }
-      for (let i = aSteps; i >= 0; i--) {
-        const [ax, ay] = archPt(rInX, rInY, (i / aSteps) * Math.PI);
-        c.lineTo(ax, ay);
-      }
-      c.closePath();
-      c.fill();
-
-      // Radial struts & diagonal X-lattice inside the curved arch box girder
-      c.strokeStyle = parisA(goldK > 0.25 ? colRim : colMain, 0.78 + 0.18 * goldK);
-      c.lineWidth = Math.max(0.52, u * 0.00060);
-      c.beginPath();
-      for (let i = 0; i < aSteps; i++) {
-        const th0 = (i / aSteps) * Math.PI, th1 = ((i + 1) / aSteps) * Math.PI;
-        const [ix0, iy0] = archPt(rInX, rInY, th0);
-        const [ox0, oy0] = archPt(rOutX, rOutY, th0);
-        const [ix1, iy1] = archPt(rInX, rInY, th1);
-        const [ox1, oy1] = archPt(rOutX, rOutY, th1);
-        c.moveTo(ix0, iy0); c.lineTo(ox0, oy0);
-        c.moveTo(ix0, iy0); c.lineTo(ox1, oy1);
-        c.moveTo(ox0, oy0); c.lineTo(ix1, iy1);
-      }
-      c.stroke();
-
-      // Spandrel triangular latticework (écoinçons) connecting the arch haunches to the inner leg edge and 1st-platform underside beam
-      c.strokeStyle = parisA(goldK > 0.25 ? colMain : dayShd, 0.62 + 0.20 * goldK);
-      c.lineWidth = Math.max(0.46, u * 0.00052);
-      c.beginPath();
-      const wTopMax = wIn(sUnder1);
-      for (let i = 2; i <= aSteps - 2; i++) {
-        const th = (i / aSteps) * Math.PI;
-        const [ox, oy] = archPt(rOutX, rOutY, th);
-        const sRow = parisCl((by - oy) / H, sSpring, sUnder1);
-        const legInX = th > Math.PI * 0.5 ? (cx - wIn(sRow)) : (cx + wIn(sRow));
-        // Horizontal tie to inner leg chord
-        c.moveTo(ox, oy); c.lineTo(legInX, oy);
-        // Vertical & diagonal spandrel web only where inside the top opening width wTopMax
-        if (Math.abs(ox - cx) <= wTopMax * 1.02) {
-          c.moveTo(ox, oy); c.lineTo(ox, yUnder1);
-          if (i < aSteps - 2) {
-            const [oxNext, oyNext] = archPt(rOutX, rOutY, ((i + 1) / aSteps) * Math.PI);
-            if (Math.abs(oxNext - cx) <= wTopMax * 1.02) {
-              c.moveTo(ox, yUnder1); c.lineTo(oxNext, oyNext);
-            }
-          }
-        }
-      }
-      c.stroke();
-
-      // Crisp intrados & extrados arch rims
-      c.strokeStyle = parisA(goldK > 0.25 ? colRim : colShade, 0.92);
-      c.lineWidth = Math.max(0.88, u * 0.00102);
-      for (const [rx, ry] of [[rInX, rInY], [rOutX, rOutY]]) {
-        c.beginPath();
-        for (let i = 0; i <= aSteps; i++) {
-          const [ax, ay] = archPt(rx, ry, (i / aSteps) * Math.PI);
-          if (i === 0) c.moveTo(ax, ay); else c.lineTo(ax, ay);
-        }
-        c.stroke();
-      }
-    }
-
-    // 3. Middle tier (between 1st and 2nd platforms: s = 0.256 .. 0.470) — 4 legs converging toward the 2nd floor around the central sky opening
-    drawTierLegs(0.256, 0.470, 11);
-
-    // Intermediate transverse girder bridge at mid-height of the 2nd tier (s = 0.368, real Eiffel Tower intermediate gallery)
-    {
-      const sMidBr = 0.368, yBr = yAt(sMidBr), wBr = wOut(sMidBr) * 0.96;
-      c.strokeStyle = parisA(goldK > 0.25 ? colRim : colShade, 0.78);
-      c.lineWidth = Math.max(0.75, u * 0.00085);
-      c.beginPath();
-      c.moveTo(cx - wBr, yBr); c.lineTo(cx + wBr, yBr);
-      c.moveTo(cx - wBr, yBr - H * 0.006); c.lineTo(cx + wBr, yBr - H * 0.006);
+      const zr = sunSide < 0 ? -1 : 1;
+      for (let j = 0; j <= 40; j++) { const y = 266 * j / 40, p = Pj(sunSide * E.o(y), y, zr * E.o(y)); if (j) c.lineTo(p[0], p[1]); else c.moveTo(p[0], p[1]); }
       c.stroke();
     }
 
-    // 4. Upper shaft (between 2nd and 3rd platforms: s = 0.500 .. 0.844) — unified 2-column open lattice shaft with 20 progressively finer bays
-    {
-      const sB = 0.500, sT = 0.844, shBays = 20;
-      c.fillStyle = parisA(goldK > 0.35 ? nightFrame : dayShd, 0.14 * (1 - 0.60 * goldK) + 0.05 * goldK);
-      c.beginPath();
-      const segs = 16;
-      for (let i = 0; i <= segs; i++) {
-        const s = parisLr(sB, sT, i / segs);
-        if (i === 0) c.moveTo(cx - wOut(s), yAt(s)); else c.lineTo(cx - wOut(s), yAt(s));
-      }
-      for (let i = segs; i >= 0; i--) {
-        const s = parisLr(sB, sT, i / segs);
-        c.lineTo(cx + wOut(s), yAt(s));
-      }
-      c.closePath();
-      c.fill();
-
-      if (goldK > 0.04) {
-        c.fillStyle = lin(c, 0, yAt(sT), 0, yAt(sB), [
-          [0, parisA(nightGoldBright, 0.10 * goldK)],
-          [0.5, parisA(nightGoldMid, 0.08 * goldK)],
-          [1, parisA(nightGoldBright, 0.18 * goldK)],
-        ]);
-        c.fill();
-      }
-
-      // 20 progressively finer stories of double-column trellis X-bracing + horizontal struts
-      c.lineWidth = Math.max(0.50, u * 0.00058);
-      for (let b = 0; b < shBays; b++) {
-        const t0 = b / shBays, t1 = (b + 1) / shBays;
-        const s0 = parisLr(sB, sT, t0), s1 = parisLr(sB, sT, t1);
-        const y0 = yAt(s0), y1 = yAt(s1);
-        const o0 = wOut(s0), o1 = wOut(s1);
-        const c0 = o0 * 0.16, c1 = o1 * 0.16;
-
-        c.strokeStyle = parisA(goldK > 0.25 ? colRim : colMain, 0.74 + 0.22 * goldK);
+    // Night: a warm upward wash at the foot of each storey (the sodium lamps sit on the platforms and light the lattice from below)
+    if (goldK > 0.04) {
+      const wash = (y0, y1, a) => {
+        const p0 = Pj(0, y0, 0), p1 = Pj(0, y1, 0), hw = E.o(y0) * (E.ca + E.sa) * k;
+        c.fillStyle = lin(c, 0, p0[1], 0, p1[1], [[0, parisA(goldHi, a * goldK)], [1, parisA(goldMid, 0)]]);
         c.beginPath();
-        c.moveTo(cx - o0, y0); c.lineTo(cx + o0, y0);
-        c.moveTo(cx - o0, y0); c.lineTo(cx - c1, y1);
-        c.moveTo(cx - c0, y0); c.lineTo(cx - o1, y1);
-        c.moveTo(cx + c0, y0); c.lineTo(cx + o1, y1);
-        c.moveTo(cx + o0, y0); c.lineTo(cx + c1, y1);
-        if (b % 2 === 0) {
-          c.moveTo(cx - o0, y0); c.lineTo(cx + o1, y1);
-          c.moveTo(cx + o0, y0); c.lineTo(cx - o1, y1);
-        }
-        c.stroke();
-      }
-
-      // Outer double edge girders + central elevator-core double chords on upper shaft
-      const sunL = dir < 0;
-      for (const side of [-1, 1]) {
-        const isSun = (side < 0 && sunL) || (side > 0 && !sunL);
-        const edgeCol = goldK > 0.35 ? colShade : (isSun ? colRim : colShade);
-        c.strokeStyle = parisA(edgeCol, 0.92);
-        c.lineWidth = Math.max(0.88, u * 0.00102);
-        c.beginPath();
-        for (let i = 0; i <= segs; i++) {
-          const s = parisLr(sB, sT, i / segs);
-          const x = cx + side * wOut(s);
-          if (i === 0) c.moveTo(x, yAt(s)); else c.lineTo(x, yAt(s));
-        }
-        c.stroke();
-
-        // Inner parallel flange chord (arêtier double) & central core chord
-        c.strokeStyle = parisA(goldK > 0.25 ? colRim : colMain, 0.74 + 0.20 * goldK);
-        c.lineWidth = Math.max(0.52, u * 0.00058);
-        c.beginPath();
-        for (let i = 0; i <= segs; i++) {
-          const s = parisLr(sB, sT, i / segs);
-          const x = cx + side * wOut(s) * 0.80;
-          if (i === 0) c.moveTo(x, yAt(s)); else c.lineTo(x, yAt(s));
-        }
-        for (let i = 0; i <= segs; i++) {
-          const s = parisLr(sB, sT, i / segs);
-          const x = cx + side * wOut(s) * 0.16;
-          if (i === 0) c.moveTo(x, yAt(s)); else c.lineTo(x, yAt(s));
-        }
-        c.stroke();
-      }
-    }
-
-    // 5. Three horizontal observation platforms with cantilevered truss brackets, overhanging cornice decks, and 1st-floor decorative arcade frieze
-    const sunSign = dir < 0 ? -1 : 1;
-
-    // --- 1st Platform (s = 0.228 .. 0.256): widest double-decked gallery with 12-arch frieze band & glazed pavilions ---
-    {
-      const sBot = 0.228, sMid = 0.243, sTop = 0.256;
-      const yB = yAt(sBot), yM = yAt(sMid), yT = yAt(sTop);
-      const wShaft = wOut(0.240);
-      const wLow = wShaft * 1.18, wHigh = wShaft * 1.24;
-
-      c.fillStyle = parisA(colShade, 0.88);
-      c.beginPath();
-      c.moveTo(cx - wShaft * 1.02, yB + H * 0.010);
-      c.lineTo(cx - wLow, yB);
-      c.lineTo(cx + wLow, yB);
-      c.lineTo(cx + wShaft * 1.02, yB + H * 0.010);
-      c.closePath();
-      c.fill();
-
-      c.fillStyle = kitCss(colShade);
-      c.fillRect(cx - wLow, yM, wLow * 2, yB - yM);
-
-      // Frieze of 12 small decorative arches (arcade du 1er étage) along the lower deck
-      const nArches = 12;
-      const archSpan = (wLow * 1.88) / nArches;
-      c.fillStyle = parisA(goldK > 0.15 ? nightGoldBright : skyVeil, 0.58 + 0.34 * goldK);
-      c.strokeStyle = parisA(colRim, 0.82);
-      c.lineWidth = Math.max(0.48, u * 0.00052);
-      for (let k = 0; k < nArches; k++) {
-        const ax = cx - wLow * 0.94 + (k + 0.5) * archSpan;
-        const arw = archSpan * 0.36;
-        c.beginPath();
-        c.arc(ax, yB - 0.4, arw, Math.PI, 0, false);
+        const n = 10;
+        for (let j = 0; j <= n; j++) { const y = parisLr(y0, y1, j / n), hwy = E.o(y) * (E.ca + E.sa) * k; const p = Pj(0, y, 0); if (j) c.lineTo(p[0] - hwy, p[1]); else c.moveTo(p[0] - hw, p[1]); }
+        for (let j = n; j >= 0; j--) { const y = parisLr(y0, y1, j / n), hwy = E.o(y) * (E.ca + E.sa) * k; const p = Pj(0, y, 0); c.lineTo(p[0] + hwy, p[1]); }
         c.closePath();
         c.fill();
-        c.stroke();
-      }
-
-      c.fillStyle = kitCss(colMain);
-      c.fillRect(cx - wHigh, yT, wHigh * 2, (yM - yT) * 0.92);
-      c.fillStyle = kitCss(colRim);
-      c.fillRect(cx + (sunSign < 0 ? -wHigh : -wHigh * 0.15), yT, wHigh * 1.15, Math.max(1.1, (yM - yT) * 0.42));
-
-      c.strokeStyle = parisA(colRim, 0.72);
-      c.lineWidth = Math.max(0.45, u * 0.00048);
-      c.beginPath();
-      c.moveTo(cx - wHigh * 0.98, yT - H * 0.0035);
-      c.lineTo(cx + wHigh * 0.98, yT - H * 0.0035);
-      c.stroke();
-
-      if (goldK > 0.04) {
-        c.fillStyle = parisA([255, 236, 178], 0.85 * goldK);
-        c.fillRect(cx - wHigh * 0.92, yT + (yM - yT) * 0.18, wHigh * 1.84, Math.max(1.2, (yM - yT) * 0.55));
-      }
+      };
+      c.save();
+      c.globalCompositeOperation = 'source-atop';
+      wash(2, 50, 0.20); wash(63, 111, 0.16); wash(121, 200, 0.12);
+      c.restore();
     }
 
-    // --- 2nd Platform (s = 0.470 .. 0.500): double-decked gallery with lower wide observation deck & stepped-in upper transfer deck ---
+    // 3. Near faces of the platforms: the 1st floor's arcaded frieze and glazed pavilions, the 2nd floor's double deck, the 3rd floor's
+    // glazed cabin on its corbels, then the campanile, the lantern and the antenna.
+    band(35.5, 50.5, 57.6, false, { deco: (cor, col, nx) => glazing(cor, nx !== 0 ? 4 : 13, 50.9, 56.4, col, 'arch') });
+    band(33.5, 57.6, 63.0, false, { deco: (cor, col, nx) => glazing(cor, nx !== 0 ? 4 : 11, 58.6, 61.8, col, 'win') });
+    band(20.6, 111.8, 116.4, false, { deco: (cor, col, nx) => glazing(cor, nx !== 0 ? 3 : 8, 112.4, 115.5, col, 'arch') });
+    band(18.4, 116.4, 121.0, false, { deco: (cor, col, nx) => glazing(cor, nx !== 0 ? 3 : 7, 117.2, 120.2, col, 'win') });
+    band(12.6, 121.0, 124.2, false, { alpha: 0.9 });
+    // the slim intermediate gallery of the upper pylon
+    band(E.o(196) + 0.4, 194.5, 197.5, true); band(E.o(196) + 0.4, 194.5, 197.5, false, { alpha: 0.7 });
     {
-      const sBot = 0.470, sMid = 0.486, sTop = 0.500;
-      const yB = yAt(sBot), yM = yAt(sMid), yT = yAt(sTop);
-      const wShaft = wOut(0.482);
-      const wLow = wShaft * 1.30, wHigh = wShaft * 1.14;
-
-      c.fillStyle = parisA(colShade, 0.90);
-      c.beginPath();
-      c.moveTo(cx - wShaft * 0.98, yB + H * 0.008);
-      c.lineTo(cx - wLow, yB);
-      c.lineTo(cx + wLow, yB);
-      c.lineTo(cx + wShaft * 0.98, yB + H * 0.008);
-      c.closePath();
-      c.fill();
-
-      c.fillStyle = kitCss(colShade);
-      c.fillRect(cx - wLow, yM, wLow * 2, yB - yM);
-      c.fillStyle = kitCss(colRim);
-      c.fillRect(cx + (sunSign < 0 ? -wLow : -wLow * 0.15), yM, wLow * 1.15, Math.max(1.0, (yB - yM) * 0.45));
-
-      const nBays2 = 8, span2 = (wLow * 1.80) / nBays2;
-      c.fillStyle = parisA(goldK > 0.15 ? [255, 238, 182] : skyVeil, 0.55 + 0.38 * goldK);
-      for (let k = 0; k < nBays2; k++) {
-        const bx = cx - wLow * 0.90 + (k + 0.2) * span2;
-        c.fillRect(bx, yM + (yB - yM) * 0.25, span2 * 0.60, (yB - yM) * 0.52);
-      }
-
-      c.fillStyle = kitCss(colMain);
-      c.fillRect(cx - wHigh, yT, wHigh * 2, yM - yT);
-      c.fillStyle = kitCss(colRim);
-      c.fillRect(cx + (sunSign < 0 ? -wHigh : -wHigh * 0.10), yT, wHigh * 1.10, Math.max(0.9, (yM - yT) * 0.42));
-
-      if (goldK > 0.04) {
-        c.fillStyle = parisA([255, 236, 178], 0.88 * goldK);
-        c.fillRect(cx - wLow * 0.90, yM + 0.5, wLow * 1.80, Math.max(1.1, (yB - yM) * 0.48));
-        c.fillRect(cx - wHigh * 0.86, yT + 0.4, wHigh * 1.72, Math.max(0.9, (yM - yT) * 0.48));
+      // corbels under the 3rd floor: the pylon flares out to carry the cabin
+      for (const [nx, nz] of [[0, -1], [1, 0]]) {
+        const col = faceCol(nx, nz, 268, false);
+        const pt = (t, y, hw) => (nx !== 0 ? Pj(hw, y, parisLr(-hw, hw, t)) : Pj(parisLr(-hw, hw, t), y, -hw));
+        const a = pt(0, 270, E.o(270)), b = pt(1, 270, E.o(270)), d = pt(1, 274.5, 6.6), e = pt(0, 274.5, 6.6);
+        c.fillStyle = parisA(darker(col, 0.15), 0.9);
+        c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.lineTo(d[0], d[1]); c.lineTo(e[0], e[1]); c.closePath(); c.fill();
       }
     }
-
-    // --- 3rd Platform, Campanile Cupola, Beacon Lantern & Stepped Needle Antenna (s = 0.844 .. 1.00) ---
+    band(6.6, 274.5, 279.2, false, { deco: (cor, col, nx) => glazing(cor, nx !== 0 ? 3 : 5, 275.2, 278.5, col, 'win') });
+    band(5.9, 279.2, 280.4, false, { alpha: 0.85 });
     {
-      const sCorbel = 0.832, sDeckB = 0.844, sDeckT = 0.866, sCampT = 0.904, sLantT = 0.922;
-      const yCorbel = yAt(sCorbel), yDB = yAt(sDeckB), yDT = yAt(sDeckT), yCampT = yAt(sCampT), yLantT = yAt(sLantT), yTip = yAt(1.0);
-      const wShaftTop = wOut(sDeckB);
-      const wDeck3 = wShaftTop * 1.48;
-
-      c.fillStyle = kitCss(colShade);
-      c.beginPath();
-      c.moveTo(cx - wShaftTop, yCorbel);
-      c.lineTo(cx - wDeck3, yDB);
-      c.lineTo(cx + wDeck3, yDB);
-      c.lineTo(cx + wShaftTop, yCorbel);
-      c.closePath();
-      c.fill();
-      c.strokeStyle = parisA(colRim, 0.78);
-      c.lineWidth = Math.max(0.48, u * 0.00054);
-      c.beginPath();
-      c.moveTo(cx - wShaftTop, yCorbel); c.lineTo(cx + wDeck3 * 0.85, yDB);
-      c.moveTo(cx + wShaftTop, yCorbel); c.lineTo(cx - wDeck3 * 0.85, yDB);
-      c.stroke();
-
-      c.fillStyle = kitCss(colMain);
-      c.fillRect(cx - wDeck3, yDT, wDeck3 * 2, yDB - yDT);
-      c.fillStyle = kitCss(colRim);
-      c.fillRect(cx - wDeck3 * 1.06, yDT, wDeck3 * 2.12, Math.max(1.0, (yDB - yDT) * 0.34));
-      if (goldK > 0.04) {
-        c.fillStyle = parisA([255, 238, 184], 0.90 * goldK);
-        c.fillRect(cx - wDeck3 * 0.88, yDT + (yDB - yDT) * 0.30, wDeck3 * 1.76, Math.max(1.0, (yDB - yDT) * 0.45));
+      // campanile: four lattice arches meeting in a little cupola, then the lantern, its cap and the stepped antenna
+      const colF = faceCol(0, -1, 288, false), colR = faceCol(1, 0, 288, false);
+      const y0 = 280.4, y1 = 289.6, r0 = 4.6, r1 = 1.8;
+      // open campanile: the corner ribs curving in to a ring under the lantern (the sky shows between them), a light web on each face
+      for (const [nx, nz, col] of [[0, -1, colF], [1, 0, colR]]) {
+        const pt = (t, y, hw) => (nx !== 0 ? Pj(hw, y, parisLr(-hw, hw, t)) : Pj(parisLr(-hw, hw, t), y, -hw));
+        const n = 8, hwAt = (j) => parisLr(r0, r1, Math.pow(j / n, 0.7));
+        c.fillStyle = parisA(col, 0.22 + 0.25 * goldK);
+        c.beginPath();
+        for (let j = 0; j <= n; j++) { const p = pt(0, parisLr(y0, y1, j / n), hwAt(j)); if (j) c.lineTo(p[0], p[1]); else c.moveTo(p[0], p[1]); }
+        for (let j = n; j >= 0; j--) { const p = pt(1, parisLr(y0, y1, j / n), hwAt(j)); c.lineTo(p[0], p[1]); }
+        c.closePath();
+        c.fill();
+        c.strokeStyle = parisA(goldK > 0.3 ? kitMix(col, goldHi, 0.3) : darker(col, 0.25), 0.95);
+        c.lineWidth = Math.max(0.45, k * 0.62);
+        for (const t of [0, 1]) {
+          c.beginPath();
+          for (let j = 0; j <= n; j++) { const p = pt(t, parisLr(y0, y1, j / n), hwAt(j)); if (j) c.lineTo(p[0], p[1]); else c.moveTo(p[0], p[1]); }
+          c.stroke();
+        }
+        const ra = pt(0, y1, r1), rb = pt(1, y1, r1);
+        c.beginPath(); c.moveTo(ra[0], ra[1]); c.lineTo(rb[0], rb[1]); c.stroke();
       }
-
-      // Campanile cupola
-      const wCampB = wShaftTop * 1.06, wCampT = wShaftTop * 0.64;
-      c.fillStyle = kitCss(colShade);
-      c.beginPath();
-      c.moveTo(cx - wCampB, yDT);
-      c.bezierCurveTo(cx - wCampB * 1.02, parisLr(yDT, yCampT, 0.58), cx - wCampT * 1.10, yCampT, cx - wCampT * 0.55, yCampT);
-      c.lineTo(cx + wCampT * 0.55, yCampT);
-      c.bezierCurveTo(cx + wCampT * 1.10, yCampT, cx + wCampB * 1.02, parisLr(yDT, yCampT, 0.58), cx + wCampB, yDT);
-      c.closePath();
-      c.fill();
-
-      c.strokeStyle = parisA(colRim, 0.82);
-      c.lineWidth = Math.max(0.48, u * 0.00054);
-      c.beginPath();
-      for (const f of [-0.65, -0.22, 0.22, 0.65]) {
-        c.moveTo(cx + f * wCampB, yDT);
-        c.quadraticCurveTo(cx + f * wCampB * 0.95, parisLr(yDT, yCampT, 0.55), cx + f * wCampT * 0.65, yCampT);
+      const lantCol = bOn > 0.05 ? kitMix(colF, [255, 248, 222], 0.9 * bOn) : kitMix(colF, P.skyHor, 0.25);
+      const lp0 = Pj(-1.4, 289.6, -1.4), lp1 = Pj(1.4, 294.6, -1.4), lpR = Pj(1.4, 289.6, 1.4);
+      c.fillStyle = kitCss(lantCol);
+      c.fillRect(lp0[0], lp1[1], Math.max(1, lpR[0] - lp0[0]), lp0[1] - lp1[1]);
+      const cap = Pj(0, 294.6, 0), capR = 1.8 * (E.ca + E.sa) * k;
+      c.fillStyle = kitCss(colR);
+      c.beginPath(); c.ellipse(cap[0], cap[1], capR, capR * 0.9, 0, Math.PI, 0); c.closePath(); c.fill();
+      // antenna mast in three steps, thinner up to the tip
+      const steps = [[296.2, 308, 0.85], [308, 320, 0.55], [320, 330, 0.3]];
+      for (const [ya, yb, hw] of steps) {
+        const a = Pj(-hw, ya, -hw), b = Pj(hw, yb, -hw), ar = Pj(hw, ya, hw);
+        c.fillStyle = kitCss(colF);
+        c.fillRect(a[0], b[1], Math.max(0.5, b[0] - a[0]), a[1] - b[1]);
+        c.fillStyle = kitCss(colR);
+        c.fillRect(b[0], b[1], Math.max(0.35, ar[0] - b[0]), a[1] - b[1]);
       }
-      const yCampMid = parisLr(yDT, yCampT, 0.48);
-      c.moveTo(cx - wCampB * 0.96, yCampMid);
-      c.lineTo(cx + wCampB * 0.96, yCampMid);
-      c.stroke();
-
-      // Glazed beacon lantern housing & dome cap
-      const wLant = wCampT * 0.56;
-      c.fillStyle = kitCss(bOn > 0.05 ? [255, 248, 220] : colMain);
-      c.fillRect(cx - wLant, yLantT, wLant * 2, yCampT - yLantT);
-      c.fillStyle = kitCss(colShade);
-      c.beginPath();
-      c.arc(cx, yLantT, wLant * 1.05, Math.PI, 0, false);
-      c.closePath();
-      c.fill();
-
-      // Stepped 3-stage antenna + ultra-fine needle spire
-      const yAnt1 = parisLr(yLantT, yTip, 0.34);
-      const yAnt2 = parisLr(yLantT, yTip, 0.68);
-      c.fillStyle = kitCss(colMain);
-      c.beginPath();
-      c.moveTo(cx - wLant * 0.52, yLantT);
-      c.lineTo(cx - wLant * 0.24, yAnt1);
-      c.lineTo(cx + wLant * 0.24, yAnt1);
-      c.lineTo(cx + wLant * 0.52, yLantT);
-      c.closePath();
-      c.fill();
-      c.strokeStyle = parisA(colRim, 0.92);
-      c.lineWidth = Math.max(0.85, u * 0.00095);
-      c.beginPath();
-      c.moveTo(cx, yLantT); c.lineTo(cx, yAnt2);
-      c.stroke();
-      c.lineWidth = Math.max(0.52, u * 0.00058);
-      c.beginPath();
-      c.moveTo(cx, yAnt2); c.lineTo(cx, yTip);
-      c.stroke();
-
       if (bOn > 0.02) {
         c.fillStyle = parisA([255, 252, 238], 0.96 * bOn);
-        c.beginPath(); c.arc(cx, E.lampY, Math.max(1.3, u * 0.0020), 0, TAU); c.fill();
+        c.beginPath(); c.arc(E.cx, E.lampY, Math.max(1.3, u * 0.0020), 0, TAU); c.fill();
       }
     }
 
-    // 6. Base layer of hourly night sparkle (scintillement) on the cached sprite so static shots at the top of the hour also show crisp white diamond sparkles
+    // 4. Base layer of hourly night sparkle (scintillement) on the cached sprite so static shots at the top of the hour also show crisp white diamond sparkles
     if (spk > 0.02 && E.glints) {
       c.fillStyle = parisA([255, 255, 255], 0.94 * spk);
       c.strokeStyle = parisA([255, 255, 255], 0.85 * spk);
@@ -22816,13 +23452,13 @@ window.LISEUSE_SCENES = (() => {
       }
     }
 
-    // 7. Rain & storm: fade the upper third of the tower ironwork itself into the low cloud colour using 'source-atop' (zero rectangular box edges in the sky!)
+    // 5. Rain & storm: fade the upper part of the ironwork itself into the low cloud colour using 'source-atop' (no box edges in the sky)
     const cloudSwallow = parisCl(wet * 0.88 + storm * 0.45 + Math.max(0, ov - 0.65) * 0.55, 0, 1);
     if (cloudSwallow > 0.04) {
       c.save();
       c.globalCompositeOperation = 'source-atop';
-      const yCloudTop = E.topY - H * 0.04;
-      const yCloudBot = yAt(0.54);
+      const yCloudTop = E.topY - E.h * 0.04;
+      const yCloudBot = E.baseY - E.h * 0.54;
       const cloudCol = kitMix(P.skyTop, P.hazeCol, 0.55);
       c.fillStyle = lin(c, 0, yCloudTop, 0, yCloudBot, [
         [0, parisA(cloudCol, 0.90 * cloudSwallow)],
@@ -22830,7 +23466,7 @@ window.LISEUSE_SCENES = (() => {
         [0.78, parisA(cloudCol, 0.32 * cloudSwallow)],
         [1, parisA(cloudCol, 0)],
       ]);
-      c.fillRect(cx - wb * 0.60, yCloudTop, wb * 1.20, yCloudBot - yCloudTop);
+      c.fillRect(E.cx - E.wBase * 0.60, yCloudTop, E.wBase * 1.20, yCloudBot - yCloudTop);
       c.restore();
     }
 
@@ -28289,6 +28925,16 @@ window.LISEUSE_SCENES = (() => {
     // 2. Band 1: Far Paris horizon panorama with varied heights, Invalides gilded dome, Gothic church spire + bell towers & Eiffel Tower
     for (const B of L.farBlocks) {
       const fBody = P.fog(P.stShd, B.d), fRoof = P.fog(P.zShd, B.d);
+      if (B.church) {
+        // Notre-Dame, then the low far houses at its foot
+        parisNDDraw(c, B, P, D, L);
+        const yLow = B.nd.Yg - B.nd.k * 11;
+        c.fillStyle = kitCss(fBody);
+        c.fillRect(B.x, yLow, B.w, B.y + B.h - yLow);
+        c.fillStyle = kitCss(fRoof);
+        c.fillRect(B.x, yLow - B.nd.k * 2.2, B.w, B.nd.k * 2.2);
+        continue;
+      }
       c.fillStyle = kitCss(fBody);
       c.fillRect(B.x, B.y, B.w, B.h);
       c.fillStyle = kitCss(fRoof);
@@ -28319,38 +28965,6 @@ window.LISEUSE_SCENES = (() => {
         c.moveTo(dcx - dr * 0.45, dby - dh * 0.22); c.quadraticCurveTo(dcx - dr * 0.25, dby - dh * 0.88, dcx, dby - dh * 0.95);
         c.moveTo(dcx + dr * 0.45, dby - dh * 0.22); c.quadraticCurveTo(dcx + dr * 0.25, dby - dh * 0.88, dcx, dby - dh * 0.95);
         c.stroke();
-      }
-
-      // Distant Sainte-Clotilde / Saint-Sulpice church towers + tall central gothic spire breaking the right horizon line
-      if (B.church) {
-        const tcx = B.x + B.w * 0.48, tby = B.y - B.roofH * 0.5, tw = B.w * 0.115, th = B.roofH * 2.15;
-        c.fillStyle = kitCss(P.fog(P.stShd, B.d - 0.05));
-        for (const s of [-1, 1]) {
-          const tx = tcx + s * tw * 1.02 - tw * 0.5;
-          c.fillRect(tx, tby - th, tw, th);
-          // Pointed stone belfry spirelet on each twin tower
-          c.fillStyle = kitCss(P.fog(P.zDark, B.d - 0.06));
-          c.beginPath();
-          c.moveTo(tx - tw * 0.06, tby - th);
-          c.lineTo(tx + tw * 0.5, tby - th * 1.68);
-          c.lineTo(tx + tw * 1.06, tby - th);
-          c.closePath();
-          c.fill();
-          // Dark belfry louvre openings
-          c.fillStyle = parisA(P.fog(P.zDark, B.d - 0.08), 0.78);
-          c.fillRect(tx + tw * 0.22, tby - th * 0.80, tw * 0.22, th * 0.38);
-          c.fillRect(tx + tw * 0.56, tby - th * 0.80, tw * 0.22, th * 0.38);
-          c.fillStyle = kitCss(P.fog(P.stShd, B.d - 0.05));
-        }
-        c.fillRect(tcx - tw * 1.02, tby - th * 0.62, tw * 2.04, th * 0.62);
-        // Central slender flèche (gothic crossing spire) rising high between the towers
-        c.fillStyle = kitCss(P.fog(P.zDark, B.d - 0.06));
-        c.beginPath();
-        c.moveTo(tcx - tw * 0.22, tby - th * 0.62);
-        c.lineTo(tcx, tby - th * 2.05);
-        c.lineTo(tcx + tw * 0.22, tby - th * 0.62);
-        c.closePath();
-        c.fill();
       }
 
       // Tiny far chimney silhouettes
@@ -29708,7 +30322,7 @@ window.LISEUSE_SCENES = (() => {
           c.globalAlpha = 1;
         }
         // The mirrored ridges, still (fx lays a wavering copy of this very picture over them).
-        c.save(); c.beginPath(); c.rect(0, hz, w, h - hz); c.clip(); lakeReflPaint(c, w, h, hz, u, P, P.reflA); c.restore();
+        c.save(); c.beginPath(); c.rect(0, hz, w, h - hz); c.clip(); lakeReflPaint(c, w, h, hz, u, P, P.reflA, lakeLightList(P, B)); c.restore();
         // The paths of light under the sun (or the moon), repainted at each step; their glitter moves with the body in fx.
         const pw = P.path;
         if (P.glow[3] * S.glow > 0.003) { c.save(); c.beginPath(); c.rect(0, hz, w, h - hz); c.clip(); c.translate(S.x, hz); c.scale(2.4, 0.5); light(c, 0, 0, hz * 0.5, S.rgb, P.glow[3] * S.glow); c.restore(); }
